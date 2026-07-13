@@ -1,0 +1,8 @@
+streamlit
+tensorflow-cpu
+xgboost
+joblib
+pillow
+fpdf2
+numpy
+scikit-learn 
