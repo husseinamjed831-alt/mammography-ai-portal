@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patient Portal</title>
+  <meta name="description" content="Secure access to your mammography reports.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="vignette"></div>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/portal"><i></i>MAMMO/AI · Portal</a>
+    <nav><button class="chip" id="signOut" hidden>Sign out</button></nav>
+  </header>
+
+  <section class="stage center" id="stage-login">
+    <form class="panel login" id="loginForm">
+      <div class="eyebrow">Patient portal</div>
+      <h2>Your reports, securely.</h2>
+      <p class="sub">Sign in with the Patient ID and password from your clinic.</p>
+      <div class="field"><label for="pid">Patient ID</label><input id="pid" autocomplete="username" required></div>
+      <div class="field"><label for="pass">Password</label><input id="pass" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit">Sign in <span class="arrow">→</span></button>
+      <p class="msg" id="loginMsg"></p>
+    </form>
+  </section>
+
+  <section class="stage" id="stage-reports">
+    <div class="reports">
+      <div class="reports-head">
+        <div>
+          <div class="eyebrow" id="who"></div>
+          <h1 id="welcome"></h1>
+        </div>
+      </div>
+      <div id="list"></div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/js/portal.js"></script>
+</body>
+</html>

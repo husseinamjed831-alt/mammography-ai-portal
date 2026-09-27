@@ -45,6 +45,8 @@ def reports_page():
     with col2:
         if st.button("Sign Out"):
             st.session_state.logged_in = False
+            st.session_state.patient_id = None
+            st.session_state.patient_name = None
             st.rerun()
 
     st.divider()

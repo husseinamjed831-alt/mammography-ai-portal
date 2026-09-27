@@ -1,0 +1,8 @@
+.git
+.venv
+__pycache__
+*.db
+reports/
+data/
+training/
+.claude/

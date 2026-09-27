@@ -4,3 +4,4 @@ __pycache__/
 reports/
 .claude/
 settings.json
+data/

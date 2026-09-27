@@ -1,8 +1,12 @@
 streamlit
+fastapi
+uvicorn
+python-multipart
 tensorflow-cpu==2.16.1
 xgboost
 joblib
 pillow
 fpdf2
 numpy<2
+protobuf<5
 scikit-learn

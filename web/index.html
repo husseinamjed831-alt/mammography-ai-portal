@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mammography AI</title>
+  <meta name="description" content="AI-assisted breast cancer screening — decision support system.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="vignette"></div>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/"><i></i>MAMMO/AI</a>
+    <nav>
+      <button class="chip" id="openRegister" hidden>+ New patient</button>
+      <a class="chip" href="/portal">Patient portal</a>
+    </nav>
+  </header>
+
+  <!-- 0. قفل الطبيب -->
+  <section class="stage center" id="stage-lock">
+    <form class="panel lock" id="lockForm">
+      <h2>Clinician access</h2>
+      <p class="sub">Enter the clinician password to continue.</p>
+      <div class="field"><label for="docPass">Password</label><input id="docPass" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit">Unlock <span class="arrow">→</span></button>
+      <p class="msg" id="lockMsg"></p>
+    </form>
+  </section>
+
+  <!-- 1. المقدمة -->
+  <section class="stage" id="stage-intro">
+    <div class="hero">
+      <div class="eyebrow">Breast cancer screening · Decision support</div>
+      <h1>
+        <span class="line"><span>See what</span></span>
+        <span class="line"><span class="outline">the eye</span></span>
+        <span class="line"><span>misses.</span></span>
+      </h1>
+      <p>Upload a mammogram and a deep-learning model scans it for suspicious findings in seconds. Every result is a second opinion for the radiologist, not a replacement.</p>
+      <button class="btn" id="begin">Start an analysis <span class="arrow">→</span></button>
+      <div class="stats">
+        <div><b id="modelName">—</b>Active model</div>
+        <div><b>CC · MLO</b>Supported views</div>
+        <div><b>PDF</b>Instant report</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. مساحة العمل -->
+  <section class="stage" id="stage-work">
+    <div class="workspace">
+      <div class="panel">
+        <h2>Patient</h2>
+        <p class="sub">Details are printed on the report.</p>
+        <div class="field"><label for="pName">Full name</label><input id="pName" placeholder="Jane Doe"></div>
+        <div class="row">
+          <div class="field"><label for="pId">Patient ID</label><input id="pId" placeholder="2847"></div>
+          <div class="field"><label for="pAge">Age</label><input id="pAge" type="number" min="18" max="100" value="50"></div>
+        </div>
+        <div class="field"><label>Breast side</label>
+          <div class="seg" data-name="side"><button class="on" type="button">Right</button><button type="button">Left</button></div>
+        </div>
+        <div class="field"><label>View</label>
+          <div class="seg" data-name="view"><button class="on" type="button">CC</button><button type="button">MLO</button></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Mammogram</h2>
+        <p class="sub">PNG, JPG or TIFF · up to 40 MB</p>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/*">
+          <div class="hint">
+            <div class="icon">↑</div>
+            <strong>Drop the image here</strong>
+            or click to browse
+          </div>
+        </label>
+        <div style="margin-top:16px"><button class="btn block" id="analyze" disabled>Analyze image <span class="arrow">→</span></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. المسح -->
+  <section class="stage center" id="stage-scan">
+    <div class="scan-wrap">
+      <div class="scan-frame">
+        <img id="scanImg" alt="Mammogram being analyzed">
+        <div class="grid"></div>
+        <div class="beam"></div>
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      </div>
+      <div class="scan-bar"><i id="scanBar"></i></div>
+      <div class="scan-log" id="scanLog"></div>
+    </div>
+  </section>
+
+  <!-- 4. النتيجة -->
+  <section class="stage" id="stage-result">
+    <div class="result" id="result">
+      <div class="verdict-tag" id="verdictTag"></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="meter"><div class="big-num" id="confNum">0%</div><span>model confidence</span></div>
+      <div class="bar"><i id="confBar"></i></div>
+      <div class="meta" id="meta"></div>
+      <div class="actions">
+        <button class="btn" id="download">Download report <span class="arrow">↓</span></button>
+        <button class="btn ghost" id="saveBtn">Save to patient portal</button>
+        <button class="btn ghost" id="again">New scan</button>
+      </div>
+      <p class="msg" id="saveMsg"></p>
+      <p class="disclaimer">AI decision-support output for research and clinical assistance. It is not a certified diagnostic tool — the final diagnosis must be made by a qualified radiologist.</p>
+    </div>
+  </section>
+
+  <!-- درج تسجيل مريضة -->
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Register patient">
+    <button class="chip close" id="closeRegister">Close</button>
+    <form class="panel" id="regForm">
+      <h2>Register patient</h2>
+      <p class="sub">Creates a portal account so the patient can view her reports.</p>
+      <div class="field"><label for="rName">Full name</label><input id="rName" required></div>
+      <div class="field"><label for="rId">Patient ID</label><input id="rId" required></div>
+      <div class="field"><label for="rPass">Temporary password</label><input id="rPass" type="password" minlength="6" required autocomplete="new-password"></div>
+      <button class="btn block" type="submit">Create account</button>
+      <p class="msg" id="regMsg"></p>
+    </form>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

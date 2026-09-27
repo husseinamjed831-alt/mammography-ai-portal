@@ -1,8 +1,17 @@
 import sqlite3
 import hashlib
+import hmac
+import os
+import secrets
 from datetime import datetime
 
-DB_NAME = "mammo_system.db"
+# على Hugging Face نخلي MAMMO_DATA_DIR=/data حتى البيانات تبقى بعد إعادة التشغيل
+DATA_DIR = os.environ.get("MAMMO_DATA_DIR", ".")
+REPORTS_DIR = os.path.join(DATA_DIR, "reports")
+DB_NAME = os.path.join(DATA_DIR, "mammo_system.db")
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+PBKDF2_ITERATIONS = 200_000
 
 
 def get_connection():
@@ -42,8 +51,19 @@ def init_db():
 
 
 def hash_password(password):
-    """يشفّر كلمة السر"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """يشفّر كلمة السر (PBKDF2 مع salt)"""
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PBKDF2_ITERATIONS).hex()
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt}${digest}"
+
+
+def check_password(password, stored):
+    """يقارن كلمة السر بالـ hash — يدعم الصيغة القديمة (SHA-256 بدون salt)"""
+    if stored.startswith("pbkdf2$"):
+        _, iterations, salt, digest = stored.split("$")
+        test = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), int(iterations)).hex()
+        return hmac.compare_digest(test, digest)
+    return hmac.compare_digest(hashlib.sha256(password.encode()).hexdigest(), stored)
 
 
 def add_patient(patient_id, full_name, password):
@@ -80,12 +100,20 @@ def verify_patient(patient_id, password):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT full_name FROM patients
-        WHERE patient_id = ? AND password_hash = ?
-    """, (patient_id, hash_password(password)))
+        SELECT full_name, password_hash FROM patients
+        WHERE patient_id = ?
+    """, (patient_id,))
     row = cur.fetchone()
+    if row and check_password(password, row[1]):
+        # نرقّي الـ hash القديم للصيغة الجديدة
+        if not row[1].startswith("pbkdf2$"):
+            cur.execute("UPDATE patients SET password_hash = ? WHERE patient_id = ?",
+                        (hash_password(password), patient_id))
+            conn.commit()
+        conn.close()
+        return row[0]
     conn.close()
-    return row[0] if row else None
+    return None
 
 
 def get_patient_reports(patient_id):
@@ -101,6 +129,30 @@ def get_patient_reports(patient_id):
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+def get_patient_name(patient_id):
+    """يجيب اسم المريضة"""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT full_name FROM patients WHERE patient_id = ?", (patient_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def get_report(report_id, patient_id):
+    """يجيب تقرير وحد بشرط يكون للمريضة نفسها"""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT report_id, created_at, result, confidence, pdf_path
+        FROM reports
+        WHERE report_id = ? AND patient_id = ?
+    """, (report_id, patient_id))
+    row = cur.fetchone()
+    conn.close()
+    return row
 
 
 if __name__ == "__main__":
