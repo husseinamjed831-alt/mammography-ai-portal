@@ -4,7 +4,8 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let current = null;
 
-// ينقل من مرحلة لمرحلة بتأثير: الحالية تطير لفوق وتتضبب، الجديدة تطلع من تحت
+// ينقل من مرحلة لمرحلة بمشهد سينمائي طويل:
+// العناصر الحالية تتفكك وتطير لفوق وتتضبب ← خط ضوء يعبر الشاشة ← الجديدة تطلع من العمق وحدة وحدة
 export function go(id, { onEnter } = {}) {
   const next = document.getElementById(id);
   const prev = current;
@@ -15,19 +16,30 @@ export function go(id, { onEnter } = {}) {
   if (prev && prev !== next) {
     const prevItems = prev.querySelectorAll(':scope > * > *');
     tl.to(prevItems, {
-      y: -40, opacity: 0, filter: 'blur(12px)', duration: 0.5 * d, ease: 'power3.in', stagger: 0.03 * d,
+      y: -70, opacity: 0, scale: 0.96, filter: 'blur(18px)',
+      duration: 0.8 * d, ease: 'power3.in', stagger: { each: 0.05 * d, from: 'start' },
     });
     tl.add(() => { prev.classList.remove('active'); gsap.set(prevItems, { clearProps: 'all' }); });
+    if (!reduced) {
+      tl.fromTo('#sweep',
+        { scaleX: 0, opacity: 1, top: '50%' },
+        { scaleX: 1, duration: 0.55, ease: 'expo.inOut' }, '-=0.35');
+      tl.to('#sweep', { opacity: 0, scaleY: 40, duration: 0.5, ease: 'power2.out' });
+      tl.set('#sweep', { scaleY: 1 });
+    }
   }
   tl.add(() => {
     next.classList.add('active');
     next.scrollTop = 0;
     onEnter && onEnter();
-  });
+  }, prev && prev !== next && !reduced ? '-=0.45' : undefined);
   const items = next.querySelectorAll(':scope > * > *');
   tl.fromTo(items,
-    { y: 60, opacity: 0, filter: 'blur(14px)' },
-    { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.9 * d, ease: 'expo.out', stagger: 0.07 * d, clearProps: 'filter,transform' });
+    { y: 90, opacity: 0, scale: 0.97, filter: 'blur(20px)', rotateX: -12, transformPerspective: 900 },
+    {
+      y: 0, opacity: 1, scale: 1, filter: 'blur(0px)', rotateX: 0,
+      duration: 1.5 * d, ease: 'expo.out', stagger: 0.09 * d, clearProps: 'filter,transform',
+    }, '<');
   gsap.set(next, { opacity: 1 });
   return tl;
 }

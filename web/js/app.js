@@ -3,10 +3,13 @@ import { createScene } from './scene.js';
 import { go, splitChars, scramble, toast, api, downloadBlob, storage } from './ui.js';
 import { loadModel, analyze as analyzeOnDevice } from './ondevice.js';
 import { makeReport } from './report.js';
+import { createSections } from './sections.js';
+import { initStore, addScan, makeThumb, findByPid } from './store.js';
 
 const gsap = window.gsap;
 const $ = (id) => document.getElementById(id);
-const scene = createScene($('gl'));
+const scene = createScene($('gl'), $('hud'));
+let downloads = null;
 
 let token = storage('doctorToken') || '';
 // server: التحليل على السيرفر (server.py) — device: بدون سيرفر، الموديل يشتغل بالمتصفح
@@ -15,8 +18,46 @@ const DEVICE_MODEL = 'EfficientNetB0 + XGBoost (on-device)';
 let file = null;
 let last = null;
 
+// ===== التبويبات =====
+const sections = createSections({
+  scene,
+  onNewScan(p) {
+    $('pName').value = p.name || '';
+    $('pId').value = p.pid || '';
+    if (p.age) $('pAge').value = p.age;
+    resetScan();
+    openWork();
+  },
+});
+
+function setTab(name) {
+  const tabs = $('tabs');
+  let active = null;
+  tabs.querySelectorAll('button').forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle('on', on);
+    if (on) { active = b; b.setAttribute('aria-current', 'page'); } else b.removeAttribute('aria-current');
+  });
+  if (active) gsap.to('#tabInk', { x: active.offsetLeft, width: active.offsetWidth, duration: 0.8, ease: 'expo.inOut' });
+}
+addEventListener('resize', () => setTab(document.querySelector('#tabs button.on')?.dataset.tab));
+
+$('tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.classList.contains('on') && b.dataset.tab !== 'patients') return;
+  const tab = b.dataset.tab;
+  setTab(tab);
+  if (tab === 'analyze') {
+    if (last) showLastResult(); else if (file) openWork(); else showIntro();
+  } else if (tab === 'devices') sections.showDevices();
+  else if (tab === 'guide') sections.showGuide();
+  else if (tab === 'patients') sections.showPatients();
+});
+
 // ===== البداية =====
 async function boot() {
+  initStore();
+  window.claude?.use?.('downloads').then((d) => { downloads = d; }).catch(() => {});
   let cfg = { doctor_auth: false };
   try {
     cfg = await api('/api/config');
@@ -26,11 +67,13 @@ async function boot() {
   }
 
   if (cfg.doctor_auth && !token) {
+    $('tabs').hidden = true;
     scene.place(0, 0, 0.9);
     go('stage-lock');
   } else {
     showIntro();
   }
+  requestAnimationFrame(() => setTab('analyze'));
 }
 
 function setupDevice() {
@@ -51,6 +94,9 @@ function setupDevice() {
 
 function showIntro() {
   $('openRegister').hidden = MODE === 'device';
+  $('tabs').hidden = false;
+  setTab('analyze');
+  scene.morph('orb');
   scene.place(1.7, 0, 1.15);
   scene.setState('idle');
   go('stage-intro', {
@@ -81,6 +127,7 @@ function handleAuthError(err) {
   if (err.status === 401) {
     token = ''; storage('doctorToken', null);
     toast('Session expired — please sign in again.', 'err');
+    $('tabs').hidden = true;
     scene.place(0, 0, 0.9);
     go('stage-lock');
     return true;
@@ -89,10 +136,14 @@ function handleAuthError(err) {
 }
 
 // ===== مساحة العمل =====
-$('begin').addEventListener('click', () => {
+function openWork() {
+  setTab('analyze');
+  scene.morph('orb');
+  scene.setState('idle');
   scene.place(2.6, 0.2, 0.85);
-  go('stage-work');
-});
+  return go('stage-work');
+}
+$('begin').addEventListener('click', openWork);
 
 document.querySelectorAll('.seg').forEach((seg) => {
   seg.addEventListener('click', (e) => {
@@ -136,6 +187,7 @@ const STEPS = [
 
 $('analyze').addEventListener('click', async () => {
   if (!file) return;
+  scene.morph('orb');
   scene.place(0, 0, 1.7);
   scene.setState('scan');
   await go('stage-scan');
@@ -202,6 +254,7 @@ async function runOnDevice() {
   const img = $('scanImg');
   try { await img.decode(); } catch { throw new Error('This browser cannot read this image. Try PNG or JPG.'); }
   const r = await analyzeOnDevice(img);
+  r.thumb = makeThumb(img);
   const malignant = r.probability >= 0.5;
   const label = malignant ? 'Malignant (Suspicious)' : 'Benign';
   const confidence = malignant ? r.probability : 1 - r.probability;
@@ -243,8 +296,20 @@ function drawFeatures(features) {
 }
 
 // ===== النتيجة =====
+function showLastResult() {
+  const cls = last.malignant ? 'malignant' : 'benign';
+  scene.morph('orb');
+  scene.setState(cls);
+  scene.place(2.2, 0, 1.25);
+  return go('stage-result');
+}
+
 function showResult(res) {
   last = res;
+  if (!last.thumb) { try { last.thumb = makeThumb($('scanImg')); } catch { /* الصورة ما تنقرأ */ } }
+  $('profileBtn').disabled = false;
+  $('profileBtn').textContent = findByPid($('pId').value.trim()) ? 'Add to patient profile' : 'Save to patient profile';
+  delete $('profileBtn').dataset.open;
   const cls = res.malignant ? 'malignant' : 'benign';
   const box = $('result');
   box.className = 'result ' + cls;
@@ -303,7 +368,7 @@ function openSheet() {
   $('sheetResult').className = 'sheet-result ' + (last.malignant ? 'm' : 'b');
   $('sheetConf').textContent = 'Model confidence: ' + pct;
   $('sheetSummary').textContent = `The automated analysis classified the uploaded mammogram as '${last.label}' with a model confidence of ${pct}. This output is produced by an AI-based screening model (${last.model}).`;
-  $('sheetPdf').hidden = window.self !== window.top;
+  $('sheetPdf').hidden = !downloads && window.self !== window.top;
   $('sheet').hidden = false;
   gsap.fromTo('#sheet', { opacity: 0 }, { opacity: 1, duration: 0.4 });
   gsap.fromTo('.sheet', { y: 60, rotateX: 12, opacity: 0 }, { y: 0, rotateX: 0, opacity: 1, duration: 0.8, ease: 'expo.out' });
@@ -318,8 +383,13 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('sheet').hidde
 $('sheetPdf').addEventListener('click', async () => {
   try {
     const blob = await makeReport({ ...patientInfo(), label: last.label, confidence: last.confidence, model: last.model });
-    downloadBlob(blob, `report_${$('pId').value.trim() || 'case'}.pdf`);
-  } catch (err) { toast(err.message, 'err'); }
+    const filename = `report_${$('pId').value.trim() || 'case'}.pdf`;
+    if (downloads) await downloads.save({ filename, data: blob });
+    else downloadBlob(blob, filename);
+  } catch (err) {
+    if (err?.code === 'declined') return;
+    toast(err?.message || 'Could not create the PDF.', 'err');
+  }
 });
 
 $('download').addEventListener('click', () => {
@@ -346,15 +416,99 @@ $('saveBtn').addEventListener('click', async () => {
   }
 });
 
-$('again').addEventListener('click', () => {
+function resetScan() {
   file = null; last = null;
   $('file').value = '';
   drop.querySelector('img')?.remove();
   $('analyze').disabled = true;
-  scene.setState('idle');
-  scene.place(2.6, 0.2, 0.85);
-  go('stage-work');
+}
+$('again').addEventListener('click', () => { resetScan(); openWork(); });
+
+// ===== حفظ النتيجة بملف المريضة =====
+$('profileBtn').addEventListener('click', async () => {
+  const btn = $('profileBtn');
+  if (btn.dataset.open) { setTab('patients'); sections.showProfile(btn.dataset.open); return; }
+  const pid = $('pId').value.trim();
+  if (!pid || !last) {
+    $('saveMsg').className = 'msg err';
+    $('saveMsg').textContent = 'Enter a Patient ID on the previous step to save this result to a profile.';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const p = await addScan(pid, {
+      prob: last.probability, conf: last.confidence, label: last.label, malignant: !!last.malignant,
+      side: segValue('side'), view: segValue('view'), model: last.model, thumb: last.thumb || '',
+    }, { name: $('pName').value.trim(), age: $('pAge').value });
+    btn.dataset.open = p.id;
+    btn.innerHTML = 'Open profile <span class="arrow">→</span>';
+    $('saveMsg').className = 'msg ok';
+    $('saveMsg').textContent = `Saved to ${p.name}'s profile.`;
+  } catch (err) {
+    $('saveMsg').className = 'msg err';
+    $('saveMsg').textContent = err.message;
+  } finally { btn.disabled = false; }
 });
+
+// ===== عارض الدقة الكاملة (حتى 4K وأكثر) =====
+const view = { s: 1, x: 0, y: 0, min: 1 };
+const vImg = $('viewerImg'), vStage = $('viewerStage');
+function applyView() { vImg.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`; }
+function fitView() {
+  const w = vStage.clientWidth, h = vStage.clientHeight;
+  const s = Math.min(w / vImg.naturalWidth, h / vImg.naturalHeight);
+  view.min = Math.min(s, 1);
+  view.s = s; view.x = (w - vImg.naturalWidth * s) / 2; view.y = (h - vImg.naturalHeight * s) / 2;
+  applyView();
+}
+function zoomAt(cx, cy, factor) {
+  const s = Math.min(Math.max(view.s * factor, view.min), 8);
+  const k = s / view.s;
+  view.x = cx - (cx - view.x) * k; view.y = cy - (cy - view.y) * k; view.s = s;
+  applyView();
+}
+$('inspectBtn').addEventListener('click', async () => {
+  vImg.src = $('scanImg').src;
+  try { await vImg.decode(); } catch { toast('This image cannot be displayed in the browser.', 'err'); return; }
+  const w = vImg.naturalWidth, h = vImg.naturalHeight;
+  const tier = Math.max(w, h) >= 3840 ? ' · 4K+' : '';
+  $('viewerInfo').textContent = `${w} × ${h} px · ${(w * h / 1e6).toFixed(1)} MP${tier} · native resolution`;
+  $('viewer').hidden = false;
+  fitView();
+  gsap.fromTo('#viewer', { opacity: 0 }, { opacity: 1, duration: 0.5 });
+  gsap.fromTo(vImg, { opacity: 0, filter: 'blur(30px)' }, { opacity: 1, filter: 'blur(0px)', duration: 1.2, ease: 'expo.out' });
+  $('viewerClose').focus();
+});
+$('viewerReset').addEventListener('click', fitView);
+$('viewerClose').addEventListener('click', () => gsap.to('#viewer', { opacity: 0, duration: 0.35, onComplete: () => { $('viewer').hidden = true; } }));
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('viewer').hidden) $('viewerClose').click(); });
+vStage.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const r = vStage.getBoundingClientRect();
+  zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+const pointers = new Map();
+let pinch = 0;
+vStage.addEventListener('pointerdown', (e) => { vStage.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+vStage.addEventListener('pointermove', (e) => {
+  const prev = pointers.get(e.pointerId);
+  if (!prev) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const r = vStage.getBoundingClientRect();
+    if (pinch) zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, dist / pinch);
+    pinch = dist;
+  } else {
+    view.x += e.clientX - prev.x; view.y += e.clientY - prev.y;
+    applyView();
+  }
+});
+const endPointer = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinch = 0; };
+vStage.addEventListener('pointerup', endPointer);
+vStage.addEventListener('pointercancel', endPointer);
+vStage.addEventListener('dblclick', (e) => { const r = vStage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); });
 
 // ===== درج التسجيل =====
 function drawer(open) {

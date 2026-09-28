@@ -10,7 +10,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 </head>
@@ -18,10 +21,19 @@
   <canvas id="gl"></canvas>
   <div class="vignette"></div>
   <div class="grain"></div>
+  <div class="sweep" id="sweep"></div>
+  <div class="hud" id="hud">WebGL</div>
 
   <header class="topbar">
     <span class="brand"><i></i>MAMMO/AI</span>
-    <nav>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <button type="button" data-tab="analyze" class="on">Analyze</button>
+      <button type="button" data-tab="patients">Patients</button>
+      <button type="button" data-tab="devices">Devices</button>
+      <button type="button" data-tab="guide"><span class="long">FDA </span>guidance</button>
+      <i class="tab-ink" id="tabInk"></i>
+    </nav>
+    <nav class="chips">
       <span class="chip live" id="modeBadge" hidden title="The model runs inside your browser. Images never leave this device."><i></i>On-device AI</span>
       <button class="chip" id="openRegister" hidden>+ New patient</button>
       <a class="chip" id="portalLink" href="portal">Patient portal</a>
@@ -120,13 +132,107 @@
       <div class="meta" id="meta"></div>
       <div class="actions">
         <button class="btn" id="download">Download report <span class="arrow">↓</span></button>
+        <button class="btn ghost" id="profileBtn">Save to patient profile</button>
         <button class="btn ghost" id="saveBtn">Save to patient portal</button>
+        <button class="btn ghost" id="inspectBtn">Inspect full resolution</button>
         <button class="btn ghost" id="again">New scan</button>
       </div>
       <p class="msg" id="saveMsg"></p>
       <p class="disclaimer">AI decision-support output for research and clinical assistance. It is not a certified diagnostic tool — the final diagnosis must be made by a qualified radiologist.</p>
     </div>
   </section>
+
+  <!-- 5. الأجهزة -->
+  <section class="stage" id="stage-devices">
+    <div class="devices">
+      <div class="sec-head">
+        <div class="eyebrow">Imaging equipment</div>
+        <h2 class="display">Machines that<br>see inside.</h2>
+      </div>
+      <div class="dev-list" id="devList" role="tablist" aria-label="Imaging devices"></div>
+      <article class="panel dev-card" id="devCard" aria-live="polite"></article>
+    </div>
+  </section>
+
+  <!-- 6. إرشادات FDA -->
+  <section class="stage" id="stage-guide">
+    <div class="guide">
+      <div class="sec-head">
+        <div class="eyebrow">Patient guidance · Source: U.S. FDA</div>
+        <h2 class="display">Know before<br>you go.</h2>
+        <p class="lede">Every tip below is summarized from a public FDA page and links to its source. This app is independent and is not affiliated with or endorsed by the FDA.</p>
+      </div>
+      <div class="phases" id="phases"></div>
+    </div>
+  </section>
+
+  <!-- 7. المرضى -->
+  <section class="stage" id="stage-patients">
+    <div class="patients">
+      <div class="sec-head">
+        <div class="eyebrow" id="storeLabel">Patient profiles</div>
+        <h2 class="display">Every patient,<br>one story.</h2>
+      </div>
+      <div class="pat-tools">
+        <div class="field grow"><label for="patSearch">Search</label><input id="patSearch" placeholder="Name or patient ID" autocomplete="off"></div>
+        <button class="btn" id="newPatBtn" type="button">New profile <span class="arrow">+</span></button>
+      </div>
+      <form class="panel new-pat" id="newPatForm" hidden>
+        <div class="row3">
+          <div class="field"><label for="npName">Full name</label><input id="npName" required></div>
+          <div class="field"><label for="npId">Patient ID</label><input id="npId" required></div>
+          <div class="field"><label for="npAge">Age</label><input id="npAge" type="number" min="18" max="100"></div>
+        </div>
+        <div class="actions"><button class="btn" type="submit">Create profile</button><button class="btn ghost" type="button" id="npCancel">Cancel</button></div>
+        <p class="msg" id="npMsg"></p>
+      </form>
+      <div class="pat-grid" id="patGrid"></div>
+    </div>
+  </section>
+
+  <!-- 8. ملف المريضة -->
+  <section class="stage" id="stage-profile">
+    <div class="profile" id="profile">
+      <button class="chip back" id="profBack" type="button">← All patients</button>
+      <header class="prof-head">
+        <div class="avatar" id="profAvatar"><span id="profInitials"></span></div>
+        <div>
+          <div class="eyebrow" id="profEyebrow"></div>
+          <h2 class="display prof-name" id="profName"></h2>
+          <div class="meta" id="profMeta"></div>
+        </div>
+      </header>
+      <div class="tiles" id="profTiles"></div>
+      <div class="panel chart-panel">
+        <div class="chart-head"><h3>Suspicion score over time</h3><span class="legend"><i></i>Decision threshold 50%</span></div>
+        <div id="profChart" class="chart"></div>
+      </div>
+      <div class="panel">
+        <h3 class="h3">Scan history</h3>
+        <div class="scan-grid" id="profScans"></div>
+      </div>
+      <div class="panel">
+        <label class="h3" for="profNotes">Clinical notes</label>
+        <textarea id="profNotes" rows="4" placeholder="Family history, symptoms, follow-up plan…"></textarea>
+        <p class="msg" id="notesMsg"></p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="profScan" type="button">New scan for this patient <span class="arrow">→</span></button>
+        <button class="btn ghost danger" id="profDelete" type="button">Delete profile</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- عارض الصورة بدقتها الكاملة -->
+  <div class="viewer" id="viewer" hidden>
+    <div class="viewer-bar">
+      <span id="viewerInfo"></span>
+      <span class="viewer-hint">Scroll or pinch to zoom · drag to pan</span>
+      <button class="chip" id="viewerReset" type="button">Fit</button>
+      <button class="chip" id="viewerClose" type="button">Close</button>
+    </div>
+    <div class="viewer-stage" id="viewerStage"><img id="viewerImg" alt="Mammogram at full resolution" draggable="false"></div>
+  </div>
 
   <!-- درج تسجيل مريضة -->
   <div class="scrim" id="scrim"></div>
