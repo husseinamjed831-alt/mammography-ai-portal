@@ -23,8 +23,8 @@ export function loadModel(onProgress = () => {}) {
     try { await tf.setBackend('webgl'); } catch { await tf.setBackend('cpu'); }
     await tf.ready();
     const [cnn, xgb] = await Promise.all([
-      tf.loadGraphModel('/model/model.json', { onProgress }),
-      fetch('/model/xgb.json').then((r) => r.json()),
+      tf.loadGraphModel('model/model.json', { onProgress }),
+      fetch('model/xgb.json').then((r) => r.json()),
     ]);
     // تسخين: أول تشغيل على WebGL يبني الـ shaders
     tf.tidy(() => cnn.execute(tf.zeros([1, SIZE, SIZE, 3])));

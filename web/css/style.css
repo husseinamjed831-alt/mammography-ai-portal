@@ -57,7 +57,7 @@ button, input, select { font: inherit; color: inherit; }
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 22px clamp(16px, 4vw, 48px);
+  padding: calc(22px + env(safe-area-inset-top, 0px)) clamp(16px, 4vw, 48px) 22px;
 }
 .brand {
   font-family: var(--font-display); font-weight: 800; letter-spacing: 0.02em;
@@ -254,6 +254,29 @@ button, input, select { font: inherit; color: inherit; }
 }
 .drawer .close { position: absolute; top: 24px; right: 24px; }
 .scrim { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .5); opacity: 0; visibility: hidden; }
+
+/* ===== ورقة التقرير ===== */
+.sheet-wrap {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px 16px;
+  background: rgba(2, 4, 10, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); overflow-y: auto;
+}
+.sheet {
+  width: min(560px, 100%); background: #f7f8fb; color: #141a2a; border-radius: 6px; overflow: hidden;
+  box-shadow: 0 50px 120px -30px rgba(63, 216, 255, .35);
+}
+.sheet-head { background: #0d3b66; color: #fff; padding: 20px 26px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sheet-head h3 { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+.sheet-head span { font-family: var(--font-mono); font-size: 11px; opacity: .8; }
+.sheet-body { padding: 22px 26px 8px; font-size: 14px; line-height: 1.6; }
+.sheet-body h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: #0d3b66; margin: 14px 0 6px; }
+.sheet-body dl { display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; }
+.sheet-body dt { color: #5b6478; } .sheet-body dd { font-weight: 500; }
+.sheet-result { font-weight: 700; font-size: 16px; }
+.sheet-result.m { color: #b41e1e; } .sheet-result.b { color: #1e823c; }
+.sheet-note { font-style: italic; font-size: 12px; color: #5b6478; border-top: 1px solid #d5d9e2; margin-top: 16px; padding-top: 12px; }
+.sheet-actions { display: flex; gap: 10px; padding: 16px 26px 24px; flex-wrap: wrap; }
+.sheet .btn { background: #0d3b66; color: #fff; }
+.btn.ghost.dark { background: transparent; color: #141a2a; border: 1px solid #c4c9d4; }
 
 /* ===== رسائل ===== */
 .toast {

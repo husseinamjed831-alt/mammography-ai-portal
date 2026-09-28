@@ -38,6 +38,7 @@ function setupDevice() {
   $('modeBadge').hidden = false;
   $('portalLink').hidden = true;
   $('saveBtn').hidden = true;
+  $('download').innerHTML = 'View report <span class="arrow">→</span>';
   const label = $('modelName');
   label.textContent = '0%';
   loadModel((p) => { label.textContent = Math.round(p * 100) + '%'; })
@@ -204,11 +205,7 @@ async function runOnDevice() {
   const malignant = r.probability >= 0.5;
   const label = malignant ? 'Malignant (Suspicious)' : 'Benign';
   const confidence = malignant ? r.probability : 1 - r.probability;
-  const pdfBlob = await makeReport({
-    name: $('pName').value.trim(), pid: $('pId').value.trim(), age: $('pAge').value || '50',
-    side: segValue('side'), view: segValue('view'), label, confidence, model: DEVICE_MODEL,
-  });
-  return { ...r, malignant, label, confidence, model: DEVICE_MODEL, pdfBlob };
+  return { ...r, malignant, label, confidence, model: DEVICE_MODEL };
 }
 
 // خريطة الـ 1280 خاصية: كل مربع = خاصية وحدة، لمعانه = قوتها
@@ -283,10 +280,52 @@ function showResult(res) {
   });
 }
 
+function patientInfo() {
+  return {
+    name: $('pName').value.trim(), pid: $('pId').value.trim(), age: $('pAge').value || '50',
+    side: segValue('side'), view: segValue('view'),
+  };
+}
+
+// بالنسخة اللي تشتغل بالمتصفح نعرض التقرير داخل الصفحة، وتنزيل الـ PDF إذا الصفحة مو داخل إطار
+function openSheet() {
+  const p = patientInfo();
+  const pct = (last.confidence * 100).toFixed(1) + '%';
+  $('sheetDate').textContent = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const dl = $('sheetPatient');
+  dl.innerHTML = '';
+  for (const [k, v] of [['Full name', p.name || '—'], ['Patient ID', p.pid || '—'], ['Age', p.age], ['Breast side', p.side], ['View', p.view]]) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    dl.append(dt, dd);
+  }
+  $('sheetResult').textContent = 'Classification: ' + last.label;
+  $('sheetResult').className = 'sheet-result ' + (last.malignant ? 'm' : 'b');
+  $('sheetConf').textContent = 'Model confidence: ' + pct;
+  $('sheetSummary').textContent = `The automated analysis classified the uploaded mammogram as '${last.label}' with a model confidence of ${pct}. This output is produced by an AI-based screening model (${last.model}).`;
+  $('sheetPdf').hidden = window.self !== window.top;
+  $('sheet').hidden = false;
+  gsap.fromTo('#sheet', { opacity: 0 }, { opacity: 1, duration: 0.4 });
+  gsap.fromTo('.sheet', { y: 60, rotateX: 12, opacity: 0 }, { y: 0, rotateX: 0, opacity: 1, duration: 0.8, ease: 'expo.out' });
+  $('sheetClose').focus();
+}
+function closeSheet() {
+  gsap.to('#sheet', { opacity: 0, duration: 0.3, onComplete: () => { $('sheet').hidden = true; } });
+}
+$('sheetClose').addEventListener('click', closeSheet);
+$('sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
+$('sheetPdf').addEventListener('click', async () => {
+  try {
+    const blob = await makeReport({ ...patientInfo(), label: last.label, confidence: last.confidence, model: last.model });
+    downloadBlob(blob, `report_${$('pId').value.trim() || 'case'}.pdf`);
+  } catch (err) { toast(err.message, 'err'); }
+});
+
 $('download').addEventListener('click', () => {
   if (!last) return;
+  if (MODE === 'device') { openSheet(); return; }
   const name = `report_${$('pId').value.trim() || 'case'}.pdf`;
-  if (last.pdfBlob) { downloadBlob(last.pdfBlob, name); return; }
   const bytes = Uint8Array.from(atob(last.pdf), (c) => c.charCodeAt(0));
   downloadBlob(new Blob([bytes], { type: 'application/pdf' }), name);
 });

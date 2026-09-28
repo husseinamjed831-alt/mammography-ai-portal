@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
   </script>
@@ -20,11 +20,11 @@
   <div class="grain"></div>
 
   <header class="topbar">
-    <a class="brand" href="/"><i></i>MAMMO/AI</a>
+    <span class="brand"><i></i>MAMMO/AI</span>
     <nav>
       <span class="chip live" id="modeBadge" hidden title="The model runs inside your browser. Images never leave this device."><i></i>On-device AI</span>
       <button class="chip" id="openRegister" hidden>+ New patient</button>
-      <a class="chip" id="portalLink" href="/portal">Patient portal</a>
+      <a class="chip" id="portalLink" href="portal">Patient portal</a>
     </nav>
   </header>
 
@@ -143,8 +143,29 @@
     </form>
   </aside>
 
+  <!-- التقرير داخل الصفحة (للنسخة اللي تشتغل بالمتصفح) -->
+  <div class="sheet-wrap" id="sheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-head"><h3 id="sheetTitle">Mammography AI · Case Report</h3><span id="sheetDate"></span></div>
+      <div class="sheet-body">
+        <h4>Patient information</h4>
+        <dl id="sheetPatient"></dl>
+        <h4>Analysis result</h4>
+        <p class="sheet-result" id="sheetResult"></p>
+        <p id="sheetConf"></p>
+        <h4>Summary</h4>
+        <p id="sheetSummary"></p>
+        <p class="sheet-note">This is an AI-assisted analysis intended for research and clinical decision support. It is not a certified diagnostic tool. The final diagnosis must be determined by a qualified radiologist.</p>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn" id="sheetPdf" hidden>Download PDF <span class="arrow">↓</span></button>
+        <button class="btn ghost dark" id="sheetClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
