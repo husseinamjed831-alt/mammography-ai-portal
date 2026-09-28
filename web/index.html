@@ -22,8 +22,9 @@
   <header class="topbar">
     <a class="brand" href="/"><i></i>MAMMO/AI</a>
     <nav>
+      <span class="chip live" id="modeBadge" hidden title="The model runs inside your browser. Images never leave this device."><i></i>On-device AI</span>
       <button class="chip" id="openRegister" hidden>+ New patient</button>
-      <a class="chip" href="/portal">Patient portal</a>
+      <a class="chip" id="portalLink" href="/portal">Patient portal</a>
     </nav>
   </header>
 
@@ -102,6 +103,10 @@
       </div>
       <div class="scan-bar"><i id="scanBar"></i></div>
       <div class="scan-log" id="scanLog"></div>
+      <div class="feat" id="featWrap" hidden>
+        <div class="feat-label"><span>Deep feature map</span><span id="featCount">1,280 activations</span></div>
+        <canvas id="featCanvas" width="640" height="128"></canvas>
+      </div>
     </div>
   </section>
 

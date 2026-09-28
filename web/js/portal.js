@@ -100,7 +100,10 @@ $('loginForm').addEventListener('submit', async (e) => {
     showReports();
   } catch (err) {
     msg.className = 'msg err';
-    msg.textContent = err.message;
+    // بالنسخة بدون سيرفر (مثلاً Vercel) ماكو قاعدة بيانات للبوابة
+    msg.textContent = err.status === 404 || err.status === 405
+      ? 'The patient portal is available on the clinic server edition only.'
+      : err.message;
     gsap.fromTo('#loginForm', { x: -10 }, { x: 0, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
   }
 });

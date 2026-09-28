@@ -1,20 +1,29 @@
 // واجهة الطبيب: مقدمة → مساحة العمل → المسح → النتيجة
 import { createScene } from './scene.js';
 import { go, splitChars, scramble, toast, api, downloadBlob, storage } from './ui.js';
+import { loadModel, analyze as analyzeOnDevice } from './ondevice.js';
+import { makeReport } from './report.js';
 
 const gsap = window.gsap;
 const $ = (id) => document.getElementById(id);
 const scene = createScene($('gl'));
 
 let token = storage('doctorToken') || '';
+// server: التحليل على السيرفر (server.py) — device: بدون سيرفر، الموديل يشتغل بالمتصفح
+let MODE = 'server';
+const DEVICE_MODEL = 'EfficientNetB0 + XGBoost (on-device)';
 let file = null;
 let last = null;
 
 // ===== البداية =====
 async function boot() {
   let cfg = { doctor_auth: false };
-  try { cfg = await api('/api/config'); } catch {}
-  api('/api/model').then((m) => { $('modelName').textContent = m.name.split(' ')[0]; }).catch(() => {});
+  try {
+    cfg = await api('/api/config');
+    api('/api/model').then((m) => { $('modelName').textContent = m.name.split(' ')[0]; }).catch(() => {});
+  } catch {
+    setupDevice();
+  }
 
   if (cfg.doctor_auth && !token) {
     scene.place(0, 0, 0.9);
@@ -24,8 +33,23 @@ async function boot() {
   }
 }
 
+function setupDevice() {
+  MODE = 'device';
+  $('modeBadge').hidden = false;
+  $('portalLink').hidden = true;
+  $('saveBtn').hidden = true;
+  const label = $('modelName');
+  label.textContent = '0%';
+  loadModel((p) => { label.textContent = Math.round(p * 100) + '%'; })
+    .then(() => {
+      label.textContent = 'Ready';
+      gsap.fromTo(label, { color: '#27f5b0' }, { color: '#eef3ff', duration: 2 });
+    })
+    .catch(() => { label.textContent = 'Offline'; toast('Could not load the AI model. Check your connection.', 'err'); });
+}
+
 function showIntro() {
-  $('openRegister').hidden = false;
+  $('openRegister').hidden = MODE === 'device';
   scene.place(1.7, 0, 1.15);
   scene.setState('idle');
   go('stage-intro', {
@@ -127,7 +151,9 @@ $('analyze').addEventListener('click', async () => {
   form.append('age', $('pAge').value || '50');
   form.append('side', segValue('side'));
   form.append('view', segValue('view'));
-  const request = api('/api/analyze', { method: 'POST', body: form, token });
+  $('featWrap').hidden = MODE !== 'device';
+  if (MODE === 'device') clearFeatures();
+  const request = MODE === 'device' ? runOnDevice() : api('/api/analyze', { method: 'POST', body: form, token });
 
   // نعرض الخطوات بينما الطلب شغال، وأقل مدة 2.8 ثانية حتى الانتقال يبين
   const shown = (async () => {
@@ -144,6 +170,20 @@ $('analyze').addEventListener('click', async () => {
   try {
     const [res] = await Promise.all([request, shown]);
     gsap.to('#scanBar', { width: '100%', duration: 0.3 });
+    if (MODE === 'device') {
+      // نعرض الأرقام الحقيقية من الموديل قبل النتيجة
+      await drawFeatures(res.features);
+      for (const text of [
+        `> ${res.features.length.toLocaleString()} features in ${Math.round(res.featureMs)} ms`,
+        `> ${res.trees} decision trees voted in ${res.treeMs.toFixed(1)} ms`,
+      ]) {
+        const line = document.createElement('div');
+        log.appendChild(line);
+        await scramble(line, text, 420);
+        line.innerHTML += ' <span class="ok">✓</span>';
+      }
+      await new Promise((r) => setTimeout(r, 700));
+    }
     beam.kill();
     showResult(res);
   } catch (err) {
@@ -155,6 +195,55 @@ $('analyze').addEventListener('click', async () => {
     go('stage-work');
   }
 });
+
+// ===== التحليل بالمتصفح =====
+async function runOnDevice() {
+  const img = $('scanImg');
+  try { await img.decode(); } catch { throw new Error('This browser cannot read this image. Try PNG or JPG.'); }
+  const r = await analyzeOnDevice(img);
+  const malignant = r.probability >= 0.5;
+  const label = malignant ? 'Malignant (Suspicious)' : 'Benign';
+  const confidence = malignant ? r.probability : 1 - r.probability;
+  const pdfBlob = await makeReport({
+    name: $('pName').value.trim(), pid: $('pId').value.trim(), age: $('pAge').value || '50',
+    side: segValue('side'), view: segValue('view'), label, confidence, model: DEVICE_MODEL,
+  });
+  return { ...r, malignant, label, confidence, model: DEVICE_MODEL, pdfBlob };
+}
+
+// خريطة الـ 1280 خاصية: كل مربع = خاصية وحدة، لمعانه = قوتها
+const FEAT_COLS = 80, FEAT_ROWS = 16;
+function clearFeatures() {
+  const c = $('featCanvas');
+  c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+function drawFeatures(features) {
+  const c = $('featCanvas');
+  const ctx = c.getContext('2d');
+  const cw = c.width / FEAT_COLS, ch = c.height / FEAT_ROWS;
+  let max = 0;
+  for (const v of features) max = Math.max(max, Math.abs(v));
+  const n = Math.min(features.length, FEAT_COLS * FEAT_ROWS);
+  const state = { p: 0 };
+  return new Promise((resolve) => {
+    gsap.to(state, {
+      p: 1, duration: 1.3, ease: 'power2.inOut',
+      onUpdate() {
+        ctx.clearRect(0, 0, c.width, c.height);
+        const upto = Math.floor(state.p * n);
+        for (let i = 0; i < upto; i++) {
+          const v = Math.sqrt(Math.abs(features[i]) / (max || 1));
+          const x = (i % FEAT_COLS) * cw, y = Math.floor(i / FEAT_COLS) * ch;
+          // من سمائي (ضعيف) إلى وردي (قوي)
+          const r = Math.round(63 + (255 - 63) * v), g = Math.round(216 - (216 - 79) * v), b = Math.round(255 - (255 - 154) * v);
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.12 + v * 0.88})`;
+          ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
+        }
+      },
+      onComplete: resolve,
+    });
+  });
+}
 
 // ===== النتيجة =====
 function showResult(res) {
@@ -196,8 +285,10 @@ function showResult(res) {
 
 $('download').addEventListener('click', () => {
   if (!last) return;
+  const name = `report_${$('pId').value.trim() || 'case'}.pdf`;
+  if (last.pdfBlob) { downloadBlob(last.pdfBlob, name); return; }
   const bytes = Uint8Array.from(atob(last.pdf), (c) => c.charCodeAt(0));
-  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), `report_${$('pId').value.trim() || 'case'}.pdf`);
+  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), name);
 });
 
 $('saveBtn').addEventListener('click', async () => {
