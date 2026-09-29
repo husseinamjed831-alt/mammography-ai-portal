@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { shapePositions, ORGANIC, GAIN } from './shapes.js';
+import { shapePositions, shapeExtras, ORGANIC, GAIN } from './shapes.js';
 
 const noiseGLSL = /* glsl */`
 vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
@@ -43,15 +43,23 @@ uniform float uSpin;
 uniform vec2  uMouse;
 uniform float uPixelRatio;
 uniform float uSize;
+uniform float uTintMix;   // 0 = ألوان الحالة، 1 = ألوان تشريحية
+uniform float uLesion;    // ظهور الورم
+uniform float uCompress;  // ضغط الثدي بين لوحي الماموغرام
 attribute vec3 aFrom;
 attribute float aRandom;
+attribute vec3 aTint;
+attribute float aFlow;    // موقع الجسيم على القناة (-1 = مو قناة)
+attribute float aFlag;    // 1 = جزء من الورم
 varying float vGlow;
 varying float vScanLine;
 varying float vRand;
 varying float vWarp;
+varying vec3 vTint;
+varying float vPulse;
+varying float vFlag;
 ${noiseGLSL}
 void main(){
-  // كل جسيم يبدأ تحوله بتأخير بسيط حسب رقمه العشوائي حتى يطلع التحول كموجة
   float delay = aRandom * 0.35;
   float m = clamp((uMorph - delay) / (1.0 - 0.35), 0.0, 1.0);
   float e = m < 0.5 ? 4.0*m*m*m : 1.0 - pow(-2.0*m + 2.0, 3.0) / 2.0;
@@ -69,6 +77,17 @@ void main(){
   float n2 = snoise(p * 3.5 - vec3(t * 1.7));
   float amp = (0.26 + uScan * 0.18) * uOrganic;
   p += normalize(p + 0.0001) * (n * amp + n2 * 0.05 * uOrganic * (1.0 + uScan * 3.0));
+
+  // تنفّس خفيف للنسيج + ضغط عمودي وقت التصوير (بس للثدي، مو للعضلة والأضلاع)
+  p *= 1.0 + 0.014 * sin(uTime * 1.25) * uTintMix;
+  float soft = smoothstep(-1.05, -0.6, p.x) * uTintMix;
+  p.y *= 1.0 - 0.38 * uCompress * soft;
+  p.z *= 1.0 + 0.16 * uCompress * soft;
+
+  // الورم ينبض
+  float lesion = aFlag * uLesion * uTintMix;
+  p += (p - vec3(-0.05, 0.55, -0.45)) * lesion * 0.12 * sin(uTime * 5.0);
+
   p *= 1.0 + uBurst * (0.5 + aRandom * 1.3);
 
   float ang = uSpin;
@@ -78,13 +97,19 @@ void main(){
   float scanY = sin(uTime * 2.2) * 1.6;
   vScanLine = uScan * smoothstep(0.16, 0.0, abs(p.y - scanY));
 
+  // نبضات ضوء تمشي على القنوات من جدار الصدر للحلمة
+  float pulse = aFlow >= 0.0 ? pow(max(0.0, sin(aFlow * 16.0 - uTime * 3.2)), 10.0) * uTintMix : 0.0;
+
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
-  float size = mix(0.7, 1.35, aRandom) * uSize * (1.0 + vScanLine * 2.5 + uBurst * 1.5 + warp * 0.8);
+  float size = mix(0.7, 1.35, aRandom) * uSize * (1.0 + vScanLine * 2.5 + uBurst * 1.5 + warp * 0.8 + pulse * 1.4 + lesion * 0.9);
   gl_PointSize = size * uPixelRatio * (6.0 / -mv.z);
   vGlow = 0.45 + 0.55 * (n * 0.5 + 0.5);
   vRand = aRandom;
   vWarp = warp;
+  vTint = aTint;
+  vPulse = pulse;
+  vFlag = aFlag;
 }`;
 
 const fragmentShader = /* glsl */`
@@ -93,17 +118,37 @@ uniform vec3 uColorB;
 uniform vec3 uColorScan;
 uniform float uAlpha;
 uniform float uGain;
+uniform float uTintMix;
+uniform float uLesion;
+uniform float uXray;
+uniform float uTime;
 varying float vGlow;
 varying float vScanLine;
 varying float vRand;
 varying float vWarp;
+varying vec3 vTint;
+varying float vPulse;
+varying float vFlag;
 void main(){
   vec2 uv = gl_PointCoord - 0.5;
   float d = length(uv);
   float a = exp(-d * d * 18.0);
   vec3 col = mix(uColorA, uColorB, smoothstep(0.2, 0.95, vRand) * 0.85 + vGlow * 0.15);
+  // ألوان تشريحية ممزوجة بلون الحالة (أخضر حميد، أحمر مشبوه...)
+  vec3 anat = vTint * (0.55 + vGlow * 0.6) + vec3(0.6, 0.95, 1.0) * vPulse;
+  anat = mix(anat, anat * 0.55 + col * 0.45, 0.35);
+  col = mix(col, anat, uTintMix);
+  // الورم: برتقالي/أبيض نابض
+  float les = vFlag * uTintMix;
+  col = mix(col, mix(vec3(1.0, 0.12, 0.05), vec3(1.0, 0.5, 0.15), 0.5 + 0.5 * sin(uTime * 5.0)) * 0.8, les);
+  // وضع الأشعة السينية: أبيض مزرق حسب كثافة النسيج
+  float lum = dot(col, vec3(0.3, 0.59, 0.11));
+  col = mix(col, vec3(0.78, 0.88, 1.0) * (0.35 + lum * 1.25), uXray * (1.0 - les * uLesion));
   col = mix(col, uColorScan, max(vScanLine, vWarp * 0.35 * step(0.85, vRand)));
-  gl_FragColor = vec4(col * (0.55 + vGlow * 0.8), a * uAlpha * uGain * (0.5 + vScanLine));
+  float alpha = a * uAlpha * uGain * (0.5 + vScanLine + vPulse * 0.8);
+  // لما يظهر الورم نعتّم الباقي حتى يبرز
+  alpha *= mix(1.0 - 0.6 * uLesion * uTintMix, uLesion * 1.6, les);
+  gl_FragColor = vec4(col * (0.55 + vGlow * 0.8), alpha);
 }`;
 
 const PALETTES = {
@@ -144,11 +189,18 @@ export function createScene(canvas, hud) {
   geo.setAttribute('position', posAttr);
   geo.setAttribute('aFrom', fromAttr);
   geo.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
+  const tintAttr = new THREE.BufferAttribute(new Float32Array(COUNT * 3).fill(1), 3);
+  const flowAttr = new THREE.BufferAttribute(new Float32Array(COUNT).fill(-1), 1);
+  const flagAttr = new THREE.BufferAttribute(new Float32Array(COUNT), 1);
+  geo.setAttribute('aTint', tintAttr);
+  geo.setAttribute('aFlow', flowAttr);
+  geo.setAttribute('aFlag', flagAttr);
 
   const uniforms = {
     uTime: { value: 0 }, uScan: { value: 0 }, uBurst: { value: 0 }, uCalm: { value: reduced ? 1 : 0 },
     uMorph: { value: 1 }, uOrganic: { value: 1 }, uSpin: { value: 0 }, uSize: { value: mobile ? 2.6 : 2.1 },
     uMouse: { value: new THREE.Vector2() }, uPixelRatio: { value: 1 }, uAlpha: { value: 0 }, uGain: { value: mobile ? 1.6 : 1 },
+    uTintMix: { value: 0 }, uLesion: { value: 0 }, uXray: { value: 0 }, uCompress: { value: 0 },
     uColorA: { value: new THREE.Color(PALETTES.idle.a) },
     uColorB: { value: new THREE.Color(PALETTES.idle.b) },
     uColorScan: { value: new THREE.Color(PALETTES.idle.scan) },
@@ -160,6 +212,26 @@ export function createScene(canvas, hud) {
   const cloud = new THREE.Points(geo, mat);
   cloud.frustumCulled = false;
   scene.add(cloud);
+
+  // لوحا الضغط (مثل جهاز الماموغرام): يظهرون وقت المسح وينطبقون على الثدي
+  const paddleMat = new THREE.MeshBasicMaterial({ color: 0x7fe7ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0xbff4ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+  const paddles = [1, -1].map((sgn) => {
+    const g = new THREE.BoxGeometry(2.3, 0.025, 2.5);
+    const mesh = new THREE.Mesh(g, paddleMat);
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), edgeMat));
+    mesh.position.set(0.05, sgn * 1.75, 0);
+    mesh.userData.sgn = sgn;
+    cloud.add(mesh);
+    return mesh;
+  });
+  const paddleState = { v: 0 };
+  function updatePaddles() {
+    const c = uniforms.uCompress.value;
+    for (const m of paddles) m.position.y = m.userData.sgn * (1.75 - 0.72 * c);
+    paddleMat.opacity = 0.07 * paddleState.v;
+    edgeMat.opacity = 0.75 * paddleState.v;
+  }
 
   // غبار بعيد ونجوم
   const dot = document.createElement('canvas');
@@ -222,11 +294,21 @@ export function createScene(canvas, hud) {
     running = !document.hidden;
     if (running) { clock.getDelta(); loop(); }
   });
+  let currentShape = 'orb';
   function loop() {
     if (!running) return;
     const dt = Math.min(clock.getDelta(), 0.05);
     uniforms.uTime.value += dt;
-    uniforms.uSpin.value += dt * (spinSpeed + uniforms.uScan.value * 0.9);
+    if (currentShape === 'breast') {
+      // الثدي: يتمايل حول المنظر الجانبي (مقطع سهمي) بدل ما يدور بالكامل، حتى التشريح يبقى واضح
+      const sway = Math.sin(uniforms.uTime.value * 0.22) * 0.55 * (1 - uniforms.uScan.value);
+      const target = -0.45 + sway - uniforms.uScan.value * 0.25;
+      const cur = uniforms.uSpin.value;
+      const diff = ((target - cur + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      uniforms.uSpin.value = cur + diff * Math.min(1, dt * 1.2);
+    } else {
+      uniforms.uSpin.value += dt * (spinSpeed + uniforms.uScan.value * 0.9);
+    }
     uniforms.uMouse.value.lerp(mouse, reduced ? 0.01 : 0.04);
     cloud.position.x += (target.x - cloud.position.x) * 0.04;
     cloud.position.y += (target.y - cloud.position.y) * 0.04;
@@ -235,6 +317,7 @@ export function createScene(canvas, hud) {
     camera.position.x += (mouse.x * 0.35 - camera.position.x) * 0.02;
     camera.position.y += (mouse.y * 0.22 - camera.position.y) * 0.02;
     camera.lookAt(0, 0, 0);
+    updatePaddles();
     composer.render();
 
     // عداد الإطارات + جودة تتكيف
@@ -266,7 +349,6 @@ export function createScene(canvas, hud) {
     }
   }
 
-  let currentShape = 'orb';
   let morphTween = null;
   function morph(name, duration = reduced ? 0.01 : 2.6) {
     if (name === currentShape) return;
@@ -282,27 +364,49 @@ export function createScene(canvas, hud) {
     } else from.set(to);
     to.set(shapePositions(name, COUNT));
     fromAttr.needsUpdate = true; posAttr.needsUpdate = true;
+    // ألوان تشريحية (الثدي): نبدّل الخصائص ونمزج الألوان تدريجياً
+    const extras = shapeExtras(name, COUNT);
+    if (extras) {
+      tintAttr.array.set(extras.tint); flowAttr.array.set(extras.flow); flagAttr.array.set(extras.flag);
+      tintAttr.needsUpdate = flowAttr.needsUpdate = flagAttr.needsUpdate = true;
+    }
+    gsap.to(uniforms.uTintMix, { value: extras ? 1 : 0, duration: duration * 0.9, ease: 'power2.inOut' });
     morphTween?.kill();
     uniforms.uMorph.value = 0;
     morphTween = gsap.to(uniforms.uMorph, { value: 1, duration, ease: 'none' });
     gsap.to(uniforms.uOrganic, { value: ORGANIC[name] ?? 1, duration: duration * 0.8, ease: 'power2.inOut' });
     // بالشاشات الضيقة الشكل يصير خلف النص، فنخففه حتى القراءة تبقى مريحة
-    const behindText = innerWidth < 900 && name !== 'orb' ? 0.45 : 1;
+    const behindText = innerWidth < 900 ? 0.45 : 1;
     gsap.to(uniforms.uGain, { value: (GAIN[name] ?? 1) * (mobile ? 1.6 : 1) * behindText, duration: duration * 0.7, ease: 'power2.inOut' });
-    spinSpeed = name === 'orb' ? 0.08 : 0.16;
+    spinSpeed = name === 'orb' ? 0.08 : name === 'breast' ? 0.12 : 0.16;
   }
+
+  let lastPlace = [0, 0, 1];
+  function place(x, y, scale = 1) {
+    lastPlace = [x, y, scale];
+    const narrow = innerWidth < 900;
+    // بالعربي (من اليمين لليسار) النص يصير يمين، فالشكل ينتقل لليسار
+    const rtl = document.documentElement.dir === 'rtl';
+    target.x = narrow ? 0 : (rtl ? -x : x);
+    target.y = narrow ? 1.35 : y;
+    target.scale = narrow ? scale * 0.55 : scale;
+  }
+  addEventListener('resize', () => place(...lastPlace));
 
   return {
     get shape() { return currentShape; },
-    place(x, y, scale = 1) {
-      const narrow = innerWidth < 900;
-      target.x = narrow ? 0 : x;
-      target.y = narrow ? 1.35 : y;
-      target.scale = narrow ? scale * 0.55 : scale;
-    },
+    place,
+    refreshPlace() { place(...lastPlace); },
     setState(name) {
       tweenColors(name);
-      gsap.to(uniforms.uScan, { value: name === 'scan' ? 1 : 0, duration: 1.4, ease: 'power3.inOut' });
+      const scanning = name === 'scan';
+      gsap.to(uniforms.uScan, { value: scanning ? 1 : 0, duration: 1.4, ease: 'power3.inOut' });
+      // وقت المسح: وضع الأشعة السينية + لوحي الضغط ينزلون
+      gsap.to(uniforms.uXray, { value: scanning ? 1 : 0, duration: 1.6, ease: 'power2.inOut' });
+      gsap.to(paddleState, { v: scanning ? 1 : 0, duration: scanning ? 1 : 0.8, ease: 'power2.out' });
+      gsap.to(uniforms.uCompress, { value: scanning ? 1 : 0, duration: scanning ? 2.2 : 1.6, ease: scanning ? 'power3.inOut' : 'elastic.out(1, 0.5)', delay: scanning ? 0.5 : 0 });
+      // الورم يضوي بس إذا النتيجة مشبوهة
+      gsap.to(uniforms.uLesion, { value: name === 'malignant' ? 1 : 0, duration: name === 'malignant' ? 2.4 : 1, ease: 'power2.inOut', delay: name === 'malignant' ? 0.6 : 0 });
       if (name === 'benign' || name === 'malignant') this.burst();
     },
     morph,
@@ -313,5 +417,5 @@ export function createScene(canvas, hud) {
 }
 
 function fallbackScene() {
-  return { shape: 'orb', place() {}, setState() {}, burst() {}, morph() {} };
+  return { shape: 'orb', place() {}, refreshPlace() {}, setState() {}, burst() {}, morph() {} };
 }

@@ -7,8 +7,9 @@
   <meta name="description" content="AI-assisted breast cancer screening — decision support system.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/rtl.css">
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -22,31 +23,32 @@
   <div class="vignette"></div>
   <div class="grain"></div>
   <div class="sweep" id="sweep"></div>
-  <div class="hud" id="hud">WebGL</div>
+  <div class="hud" id="hud" dir="ltr">WebGL</div>
 
   <header class="topbar">
-    <span class="brand"><i></i>MAMMO/AI</span>
+    <span class="brand" dir="ltr"><i></i>MAMMO/AI</span>
     <nav class="tabs" id="tabs" aria-label="Sections">
-      <button type="button" data-tab="analyze" class="on">Analyze</button>
-      <button type="button" data-tab="patients">Patients</button>
-      <button type="button" data-tab="devices">Devices</button>
-      <button type="button" data-tab="guide"><span class="long">FDA </span>guidance</button>
+      <button type="button" data-tab="analyze" class="on" data-i18n="tab.analyze">Analyze</button>
+      <button type="button" data-tab="patients" data-i18n="tab.patients">Patients</button>
+      <button type="button" data-tab="devices" data-i18n="tab.devices">Devices</button>
+      <button type="button" data-tab="guide"><span class="long" data-i18n="tab.guideFull">FDA guidance</span><span class="short" data-i18n="tab.guideShort">Guidance</span></button>
       <i class="tab-ink" id="tabInk"></i>
     </nav>
     <nav class="chips">
-      <span class="chip live" id="modeBadge" hidden title="The model runs inside your browser. Images never leave this device."><i></i>On-device AI</span>
-      <button class="chip" id="openRegister" hidden>+ New patient</button>
-      <a class="chip" id="portalLink" href="portal">Patient portal</a>
+      <span class="chip live" id="modeBadge" hidden data-i18n-title="badge.title"><i></i><span data-i18n="badge.device">On-device AI</span></span>
+      <button class="chip" id="openRegister" hidden data-i18n="chip.newPatient">+ New patient</button>
+      <a class="chip" id="portalLink" href="portal" data-i18n="chip.portal">Patient portal</a>
+      <button class="chip lang" id="langBtn" type="button" aria-label="Language / اللغة" data-i18n="lang.toggle">ع</button>
     </nav>
   </header>
 
   <!-- 0. قفل الطبيب -->
   <section class="stage center" id="stage-lock">
     <form class="panel lock" id="lockForm">
-      <h2>Clinician access</h2>
-      <p class="sub">Enter the clinician password to continue.</p>
-      <div class="field"><label for="docPass">Password</label><input id="docPass" type="password" autocomplete="current-password" required></div>
-      <button class="btn block" type="submit">Unlock <span class="arrow">→</span></button>
+      <h2 data-i18n="lock.title">Clinician access</h2>
+      <p class="sub" data-i18n="lock.sub">Enter the clinician password to continue.</p>
+      <div class="field"><label for="docPass" data-i18n="lock.password">Password</label><input id="docPass" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit"><span data-i18n="lock.unlock">Unlock</span> <span class="arrow">→</span></button>
       <p class="msg" id="lockMsg"></p>
     </form>
   </section>
@@ -54,18 +56,18 @@
   <!-- 1. المقدمة -->
   <section class="stage" id="stage-intro">
     <div class="hero">
-      <div class="eyebrow">Breast cancer screening · Decision support</div>
+      <div class="eyebrow" data-i18n="intro.eyebrow">Breast cancer screening · Decision support</div>
       <h1>
-        <span class="line"><span>See what</span></span>
-        <span class="line"><span class="outline">the eye</span></span>
-        <span class="line"><span>misses.</span></span>
+        <span class="line"><span data-i18n="intro.l1">See what</span></span>
+        <span class="line"><span class="outline" data-i18n="intro.l2">the eye</span></span>
+        <span class="line"><span data-i18n="intro.l3">misses.</span></span>
       </h1>
-      <p>Upload a mammogram and a deep-learning model scans it for suspicious findings in seconds. Every result is a second opinion for the radiologist, not a replacement.</p>
-      <button class="btn" id="begin">Start an analysis <span class="arrow">→</span></button>
+      <p data-i18n="intro.p">Upload a mammogram and a deep-learning model scans it for suspicious findings in seconds. Every result is a second opinion for the radiologist, not a replacement.</p>
+      <button class="btn" id="begin"><span data-i18n="intro.begin">Start an analysis</span> <span class="arrow">→</span></button>
       <div class="stats">
-        <div><b id="modelName">—</b>Active model</div>
-        <div><b>CC · MLO</b>Supported views</div>
-        <div><b>PDF</b>Instant report</div>
+        <div><b id="modelName">—</b><span data-i18n="intro.model">Active model</span></div>
+        <div><b dir="ltr">CC · MLO</b><span data-i18n="intro.views">Supported views</span></div>
+        <div><b>PDF</b><span data-i18n="intro.report">Instant report</span></div>
       </div>
     </div>
   </section>
@@ -74,32 +76,32 @@
   <section class="stage" id="stage-work">
     <div class="workspace">
       <div class="panel">
-        <h2>Patient</h2>
-        <p class="sub">Details are printed on the report.</p>
-        <div class="field"><label for="pName">Full name</label><input id="pName" placeholder="Jane Doe"></div>
+        <h2 data-i18n="work.patient">Patient</h2>
+        <p class="sub" data-i18n="work.patientSub">Details are printed on the report.</p>
+        <div class="field"><label for="pName" data-i18n="f.name">Full name</label><input id="pName" placeholder="Jane Doe"></div>
         <div class="row">
-          <div class="field"><label for="pId">Patient ID</label><input id="pId" placeholder="2847"></div>
-          <div class="field"><label for="pAge">Age</label><input id="pAge" type="number" min="18" max="100" value="50"></div>
+          <div class="field"><label for="pId" data-i18n="f.pid">Patient ID</label><input id="pId" placeholder="2847"></div>
+          <div class="field"><label for="pAge" data-i18n="f.age">Age</label><input id="pAge" type="number" min="18" max="100" value="50"></div>
         </div>
-        <div class="field"><label>Breast side</label>
-          <div class="seg" data-name="side"><button class="on" type="button">Right</button><button type="button">Left</button></div>
+        <div class="field"><label data-i18n="f.side">Breast side</label>
+          <div class="seg" data-name="side"><button class="on" type="button" data-value="Right" data-i18n="side.Right">Right</button><button type="button" data-value="Left" data-i18n="side.Left">Left</button></div>
         </div>
-        <div class="field"><label>View</label>
-          <div class="seg" data-name="view"><button class="on" type="button">CC</button><button type="button">MLO</button></div>
+        <div class="field"><label data-i18n="f.view">View</label>
+          <div class="seg" data-name="view"><button class="on" type="button" data-value="CC">CC</button><button type="button" data-value="MLO">MLO</button></div>
         </div>
       </div>
       <div class="panel">
-        <h2>Mammogram</h2>
-        <p class="sub">PNG, JPG or TIFF · up to 40 MB</p>
+        <h2 data-i18n="work.mammo">Mammogram</h2>
+        <p class="sub" data-i18n="work.mammoSub">PNG, JPG or TIFF · up to 40 MB</p>
         <label class="drop" id="drop">
           <input type="file" id="file" accept="image/*">
           <div class="hint">
             <div class="icon">↑</div>
-            <strong>Drop the image here</strong>
-            or click to browse
+            <strong data-i18n="work.drop">Drop the image here</strong>
+            <span data-i18n="work.browse">or click to browse</span>
           </div>
         </label>
-        <div style="margin-top:16px"><button class="btn block" id="analyze" disabled>Analyze image <span class="arrow">→</span></button></div>
+        <div style="margin-top:16px"><button class="btn block" id="analyze" disabled><span data-i18n="work.analyze">Analyze image</span> <span class="arrow">→</span></button></div>
       </div>
     </div>
   </section>
@@ -107,16 +109,17 @@
   <!-- 3. المسح -->
   <section class="stage center" id="stage-scan">
     <div class="scan-wrap">
-      <div class="scan-frame">
-        <img id="scanImg" alt="Mammogram being analyzed">
+      <div class="scan-frame" id="scanFrame">
+        <img id="scanImg" alt="">
+        <canvas class="heat-layer" id="scanHeat"></canvas>
         <div class="grid"></div>
         <div class="beam"></div>
         <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
       </div>
       <div class="scan-bar"><i id="scanBar"></i></div>
-      <div class="scan-log" id="scanLog"></div>
+      <div class="scan-log" id="scanLog" dir="auto"></div>
       <div class="feat" id="featWrap" hidden>
-        <div class="feat-label"><span>Deep feature map</span><span id="featCount">1,280 activations</span></div>
+        <div class="feat-label"><span data-i18n="scan.featMap">Deep feature map</span><span data-i18n="scan.featCount">1,280 activations</span></div>
         <canvas id="featCanvas" width="640" height="128"></canvas>
       </div>
     </div>
@@ -127,18 +130,28 @@
     <div class="result" id="result">
       <div class="verdict-tag" id="verdictTag"></div>
       <div class="verdict" id="verdict"></div>
-      <div class="meter"><div class="big-num" id="confNum">0%</div><span>model confidence</span></div>
+      <div class="meter"><div class="big-num" id="confNum" dir="ltr">0%</div><span data-i18n="res.confidence">model confidence</span></div>
       <div class="bar"><i id="confBar"></i></div>
       <div class="meta" id="meta"></div>
+      <figure class="attn" id="attn" hidden>
+        <button type="button" class="attn-img" id="attnOpen" aria-label="Attention map">
+          <img id="attnImg" alt="">
+          <canvas id="attnHeat"></canvas>
+        </button>
+        <figcaption>
+          <b data-i18n="attn.title">Where the model looked</b>
+          <span data-i18n="attn.cap">Brighter areas changed the score the most when hidden (occlusion test). This is not a lesion outline.</span>
+        </figcaption>
+      </figure>
       <div class="actions">
-        <button class="btn" id="download">Download report <span class="arrow">↓</span></button>
-        <button class="btn ghost" id="profileBtn">Save to patient profile</button>
-        <button class="btn ghost" id="saveBtn">Save to patient portal</button>
-        <button class="btn ghost" id="inspectBtn">Inspect full resolution</button>
-        <button class="btn ghost" id="again">New scan</button>
+        <button class="btn" id="download"><span id="downloadLabel" data-i18n="res.download">Download report</span> <span class="arrow">↓</span></button>
+        <button class="btn ghost" id="profileBtn" data-i18n="res.saveProfile">Save to patient profile</button>
+        <button class="btn ghost" id="saveBtn" data-i18n="res.savePortal">Save to patient portal</button>
+        <button class="btn ghost" id="inspectBtn" data-i18n="res.inspect">Inspect full resolution</button>
+        <button class="btn ghost" id="again" data-i18n="res.again">New scan</button>
       </div>
       <p class="msg" id="saveMsg"></p>
-      <p class="disclaimer">AI decision-support output for research and clinical assistance. It is not a certified diagnostic tool — the final diagnosis must be made by a qualified radiologist.</p>
+      <p class="disclaimer" data-i18n="res.disclaimer">AI decision-support output for research and clinical assistance. It is not a certified diagnostic tool. The final diagnosis must be made by a qualified radiologist.</p>
     </div>
   </section>
 
@@ -146,10 +159,10 @@
   <section class="stage" id="stage-devices">
     <div class="devices">
       <div class="sec-head">
-        <div class="eyebrow">Imaging equipment</div>
-        <h2 class="display">Machines that<br>see inside.</h2>
+        <div class="eyebrow" data-i18n="dev.eyebrow">Imaging equipment</div>
+        <h2 class="display" data-i18n-html="dev.title">Machines that<br>see inside.</h2>
       </div>
-      <div class="dev-list" id="devList" role="tablist" aria-label="Imaging devices"></div>
+      <div class="dev-list" id="devList" role="tablist"></div>
       <article class="panel dev-card" id="devCard" aria-live="polite"></article>
     </div>
   </section>
@@ -158,9 +171,9 @@
   <section class="stage" id="stage-guide">
     <div class="guide">
       <div class="sec-head">
-        <div class="eyebrow">Patient guidance · Source: U.S. FDA</div>
-        <h2 class="display">Know before<br>you go.</h2>
-        <p class="lede">Every tip below is summarized from a public FDA page and links to its source. This app is independent and is not affiliated with or endorsed by the FDA.</p>
+        <div class="eyebrow" data-i18n="guide.eyebrow">Patient guidance · Source: U.S. FDA</div>
+        <h2 class="display" data-i18n-html="guide.title">Know before<br>you go.</h2>
+        <p class="lede" data-i18n="guide.lede">Every tip below is summarized from a public FDA page and links to its source. This app is independent and is not affiliated with or endorsed by the FDA.</p>
       </div>
       <div class="phases" id="phases"></div>
     </div>
@@ -170,20 +183,20 @@
   <section class="stage" id="stage-patients">
     <div class="patients">
       <div class="sec-head">
-        <div class="eyebrow" id="storeLabel">Patient profiles</div>
-        <h2 class="display">Every patient,<br>one story.</h2>
+        <div class="eyebrow" id="storeLabel" data-i18n="pat.eyebrow">Patient profiles</div>
+        <h2 class="display" data-i18n-html="pat.title">Every patient,<br>one story.</h2>
       </div>
       <div class="pat-tools">
-        <div class="field grow"><label for="patSearch">Search</label><input id="patSearch" placeholder="Name or patient ID" autocomplete="off"></div>
-        <button class="btn" id="newPatBtn" type="button">New profile <span class="arrow">+</span></button>
+        <div class="field grow"><label for="patSearch" data-i18n="pat.search">Search</label><input id="patSearch" data-i18n-ph="pat.searchPh" placeholder="Name or patient ID" autocomplete="off"></div>
+        <button class="btn" id="newPatBtn" type="button"><span data-i18n="pat.new">New profile</span> <span class="arrow">+</span></button>
       </div>
       <form class="panel new-pat" id="newPatForm" hidden>
         <div class="row3">
-          <div class="field"><label for="npName">Full name</label><input id="npName" required></div>
-          <div class="field"><label for="npId">Patient ID</label><input id="npId" required></div>
-          <div class="field"><label for="npAge">Age</label><input id="npAge" type="number" min="18" max="100"></div>
+          <div class="field"><label for="npName" data-i18n="f.name">Full name</label><input id="npName" required></div>
+          <div class="field"><label for="npId" data-i18n="f.pid">Patient ID</label><input id="npId" required></div>
+          <div class="field"><label for="npAge" data-i18n="f.age">Age</label><input id="npAge" type="number" min="18" max="100"></div>
         </div>
-        <div class="actions"><button class="btn" type="submit">Create profile</button><button class="btn ghost" type="button" id="npCancel">Cancel</button></div>
+        <div class="actions"><button class="btn" type="submit" data-i18n="pat.create">Create profile</button><button class="btn ghost" type="button" id="npCancel" data-i18n="pat.cancel">Cancel</button></div>
         <p class="msg" id="npMsg"></p>
       </form>
       <div class="pat-grid" id="patGrid"></div>
@@ -193,7 +206,7 @@
   <!-- 8. ملف المريضة -->
   <section class="stage" id="stage-profile">
     <div class="profile" id="profile">
-      <button class="chip back" id="profBack" type="button">← All patients</button>
+      <button class="chip back" id="profBack" type="button" data-i18n="prof.back">← All patients</button>
       <header class="prof-head">
         <div class="avatar" id="profAvatar"><span id="profInitials"></span></div>
         <div>
@@ -204,21 +217,21 @@
       </header>
       <div class="tiles" id="profTiles"></div>
       <div class="panel chart-panel">
-        <div class="chart-head"><h3>Suspicion score over time</h3><span class="legend"><i></i>Decision threshold 50%</span></div>
+        <div class="chart-head"><h3 data-i18n="prof.chart">Suspicion score over time</h3><span class="legend"><i></i><span data-i18n="prof.threshold">Decision threshold 50%</span></span></div>
         <div id="profChart" class="chart"></div>
       </div>
       <div class="panel">
-        <h3 class="h3">Scan history</h3>
+        <h3 class="h3" data-i18n="prof.history">Scan history</h3>
         <div class="scan-grid" id="profScans"></div>
       </div>
       <div class="panel">
-        <label class="h3" for="profNotes">Clinical notes</label>
-        <textarea id="profNotes" rows="4" placeholder="Family history, symptoms, follow-up plan…"></textarea>
+        <label class="h3" for="profNotes" data-i18n="prof.notes">Clinical notes</label>
+        <textarea id="profNotes" rows="4" data-i18n-ph="prof.notesPh" placeholder="Family history, symptoms, follow-up plan…"></textarea>
         <p class="msg" id="notesMsg"></p>
       </div>
       <div class="actions">
-        <button class="btn" id="profScan" type="button">New scan for this patient <span class="arrow">→</span></button>
-        <button class="btn ghost danger" id="profDelete" type="button">Delete profile</button>
+        <button class="btn" id="profScan" type="button"><span data-i18n="prof.scan">New scan for this patient</span> <span class="arrow">→</span></button>
+        <button class="btn ghost danger" id="profDelete" type="button" data-i18n="prof.delete">Delete profile</button>
       </div>
     </div>
   </section>
@@ -226,46 +239,51 @@
   <!-- عارض الصورة بدقتها الكاملة -->
   <div class="viewer" id="viewer" hidden>
     <div class="viewer-bar">
-      <span id="viewerInfo"></span>
-      <span class="viewer-hint">Scroll or pinch to zoom · drag to pan</span>
-      <button class="chip" id="viewerReset" type="button">Fit</button>
-      <button class="chip" id="viewerClose" type="button">Close</button>
+      <span id="viewerInfo" dir="auto"></span>
+      <span class="viewer-hint" data-i18n="view.hint">Scroll or pinch to zoom · drag to pan</span>
+      <button class="chip" id="viewerHeat" type="button" aria-pressed="false" hidden data-i18n="view.heat">Attention map</button>
+      <button class="chip" id="viewerReset" type="button" data-i18n="view.fit">Fit</button>
+      <button class="chip" id="viewerClose" type="button" data-i18n="view.close">Close</button>
     </div>
-    <div class="viewer-stage" id="viewerStage"><img id="viewerImg" alt="Mammogram at full resolution" draggable="false"></div>
+    <div class="viewer-stage" id="viewerStage">
+      <img id="viewerImg" alt="" draggable="false">
+      <canvas id="viewerHeatLayer" hidden></canvas>
+    </div>
   </div>
 
-  <!-- درج تسجيل مريضة -->
+  <!-- درج تسجيل مريضة (نسخة السيرفر) -->
   <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Register patient">
-    <button class="chip close" id="closeRegister">Close</button>
+  <aside class="drawer" id="drawer">
+    <button class="chip close" id="closeRegister" data-i18n="reg.close">Close</button>
     <form class="panel" id="regForm">
-      <h2>Register patient</h2>
-      <p class="sub">Creates a portal account so the patient can view her reports.</p>
-      <div class="field"><label for="rName">Full name</label><input id="rName" required></div>
-      <div class="field"><label for="rId">Patient ID</label><input id="rId" required></div>
-      <div class="field"><label for="rPass">Temporary password</label><input id="rPass" type="password" minlength="6" required autocomplete="new-password"></div>
-      <button class="btn block" type="submit">Create account</button>
+      <h2 data-i18n="reg.title">Register patient</h2>
+      <p class="sub" data-i18n="reg.sub">Creates a portal account so the patient can view her reports.</p>
+      <div class="field"><label for="rName" data-i18n="f.name">Full name</label><input id="rName" required></div>
+      <div class="field"><label for="rId" data-i18n="f.pid">Patient ID</label><input id="rId" required></div>
+      <div class="field"><label for="rPass" data-i18n="reg.pass">Temporary password</label><input id="rPass" type="password" minlength="6" required autocomplete="new-password"></div>
+      <button class="btn block" type="submit" data-i18n="reg.create">Create account</button>
       <p class="msg" id="regMsg"></p>
     </form>
   </aside>
 
-  <!-- التقرير داخل الصفحة (للنسخة اللي تشتغل بالمتصفح) -->
+  <!-- التقرير داخل الصفحة -->
   <div class="sheet-wrap" id="sheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-      <div class="sheet-head"><h3 id="sheetTitle">Mammography AI · Case Report</h3><span id="sheetDate"></span></div>
+      <div class="sheet-head"><h3 id="sheetTitle" data-i18n="sheet.title">Mammography AI · Case Report</h3><span id="sheetDate"></span></div>
       <div class="sheet-body">
-        <h4>Patient information</h4>
+        <h4 data-i18n="sheet.patient">Patient information</h4>
         <dl id="sheetPatient"></dl>
-        <h4>Analysis result</h4>
+        <h4 data-i18n="sheet.result">Analysis result</h4>
         <p class="sheet-result" id="sheetResult"></p>
         <p id="sheetConf"></p>
-        <h4>Summary</h4>
+        <h4 data-i18n="sheet.summary">Summary</h4>
         <p id="sheetSummary"></p>
-        <p class="sheet-note">This is an AI-assisted analysis intended for research and clinical decision support. It is not a certified diagnostic tool. The final diagnosis must be determined by a qualified radiologist.</p>
+        <p class="sheet-note" data-i18n="sheet.note">This is an AI-assisted analysis intended for research and clinical decision support. It is not a certified diagnostic tool. The final diagnosis must be determined by a qualified radiologist.</p>
       </div>
       <div class="sheet-actions">
-        <button class="btn" id="sheetPdf" hidden>Download PDF <span class="arrow">↓</span></button>
-        <button class="btn ghost dark" id="sheetClose">Close</button>
+        <button class="btn" id="sheetPdf" hidden><span data-i18n="sheet.pdf">Download PDF</span> <span class="arrow">↓</span></button>
+        <button class="btn ghost dark" id="sheetClose" data-i18n="sheet.close">Close</button>
+        <small class="pdf-note" id="pdfNote" hidden data-i18n="sheet.pdfNote">The PDF is generated in English.</small>
       </div>
     </div>
   </div>

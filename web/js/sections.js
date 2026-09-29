@@ -1,6 +1,8 @@
-// الأقسام: الأجهزة، إرشادات FDA، المرضى، ملف المريضة
+// الأقسام: الأجهزة، إرشادات FDA، المرضى، ملف المريضة (بالإنكليزي والعربي)
 import { DEVICES, GUIDANCE } from './content.js';
 import { go, splitChars, toast } from './ui.js';
+import { t, pick, locale, onLang } from './i18n.js';
+import { drawHeat } from './ondevice.js';
 import { onPatients, getPatient, patients, upsertPatient, updateNotes, deletePatient, storeKind } from './store.js';
 
 const gsap = window.gsap;
@@ -12,21 +14,30 @@ const el = (tag, cls, text) => {
   return e;
 };
 const pct = (v) => (v * 100).toFixed(1) + '%';
-const fmtDate = (iso, opts = { dateStyle: 'medium' }) => { try { return new Date(iso).toLocaleDateString(undefined, opts); } catch { return ''; } };
+const fmtDate = (iso, opts = { dateStyle: 'medium' }) => { try { return new Date(iso).toLocaleDateString(locale(), opts); } catch { return ''; } };
+// تاريخ للرسم البياني: دائماً بصيغة لاتينية ثابتة حتى ما يتلخبط اتجاهه
+const fmtAxisDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); } catch { return ''; } };
+const fmtDateTime = (iso) => { try { return new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }); } catch { return ''; } };
 const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+const sideLabel = (v) => (v === 'Right' || v === 'Left' ? t('side.' + v) : v);
 
 export function createSections({ scene, onNewScan }) {
   // ===== الأجهزة =====
   let device = DEVICES[0];
   const list = $('devList');
-  for (const d of DEVICES) {
-    const b = el('button', 'dev-btn');
-    b.type = 'button';
-    b.setAttribute('role', 'tab');
-    b.dataset.id = d.id;
-    b.append(el('b', null, d.short), el('small', null, d.tag));
-    b.addEventListener('click', () => selectDevice(d, true));
-    list.appendChild(b);
+
+  function renderDeviceList() {
+    list.innerHTML = '';
+    for (const d of DEVICES) {
+      const b = el('button', 'dev-btn' + (d === device ? ' on' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', d === device);
+      b.dataset.id = d.id;
+      b.append(el('b', null, d.short), el('small', null, pick(d.tag)));
+      b.addEventListener('click', () => selectDevice(d, true));
+      list.appendChild(b);
+    }
   }
 
   function renderDevice(d) {
@@ -34,18 +45,18 @@ export function createSections({ scene, onNewScan }) {
     card.innerHTML = '';
     const reg = el('div', 'reg');
     const regText = el('div');
-    regText.append(el('span', 'k', 'Regulatory note'), document.createTextNode(d.fda + ' '));
-    const a = el('a', 'src', 'Source: FDA ↗');
+    regText.append(el('span', 'k', t('dev.reg')), document.createTextNode(pick(d.fda) + ' '));
+    const a = el('a', 'src', t('dev.src'));
     a.href = d.src; a.target = '_blank'; a.rel = 'noopener';
     regText.appendChild(a);
     reg.append(el('div', 'seal', '✓'), regText);
     const parts = el('div', 'parts');
-    for (const p of d.parts) parts.appendChild(el('span', null, p));
+    for (const p of pick(d.parts)) parts.appendChild(el('span', null, p));
     card.append(
-      el('div', 'tag', d.tag), el('h3', null, d.name),
-      el('span', 'k', 'How it works'), el('p', null, d.what),
-      el('span', 'k', 'When it is used'), el('p', null, d.use),
-      el('span', 'k', 'Key components'), parts, reg,
+      el('div', 'tag', pick(d.tag)), el('h3', null, pick(d.name)),
+      el('span', 'k', t('dev.how')), el('p', null, pick(d.what)),
+      el('span', 'k', t('dev.when')), el('p', null, pick(d.use)),
+      el('span', 'k', t('dev.parts')), parts, reg,
     );
   }
 
@@ -69,27 +80,32 @@ export function createSections({ scene, onNewScan }) {
   function showDevices() {
     scene.setState('device');
     scene.place(2.3, -0.1, 0.95);
+    renderDeviceList();
     selectDevice(device, false);
     return go('stage-devices');
   }
 
   // ===== الإرشادات =====
-  const phases = $('phases');
-  GUIDANCE.forEach((ph, i) => {
-    const sec = el('section', 'phase');
-    const h = el('h3');
-    h.append(el('span', null, String(i + 1).padStart(2, '0')), document.createTextNode(ph.phase));
-    const tips = el('div', 'tips');
-    for (const t of ph.items) {
-      const card = el('article', 'panel tip' + (t.warn ? ' warn' : ''));
-      const a = el('a', 'src', t.label + ' ↗');
-      a.href = t.src; a.target = '_blank'; a.rel = 'noopener';
-      card.append(el('h4', null, t.title), el('p', null, t.body), a);
-      tips.appendChild(card);
-    }
-    sec.append(h, tips);
-    phases.appendChild(sec);
-  });
+  function renderGuide() {
+    const phases = $('phases');
+    phases.innerHTML = '';
+    GUIDANCE.forEach((ph, i) => {
+      const sec = el('section', 'phase');
+      const h = el('h3');
+      h.append(el('span', null, String(i + 1).padStart(2, '0')), document.createTextNode(pick(ph.phase)));
+      const tips = el('div', 'tips');
+      for (const tip of ph.items) {
+        const card = el('article', 'panel tip' + (tip.warn ? ' warn' : ''));
+        const a = el('a', 'src', tip.label + ' ↗');
+        a.href = tip.src; a.target = '_blank'; a.rel = 'noopener'; a.dir = 'ltr';
+        card.append(el('h4', null, pick(tip.title)), el('p', null, pick(tip.body)), a);
+        tips.appendChild(card);
+      }
+      sec.append(h, tips);
+      phases.appendChild(sec);
+    });
+  }
+  renderGuide();
 
   function showGuide() {
     scene.setState('guide');
@@ -106,7 +122,6 @@ export function createSections({ scene, onNewScan }) {
   // ===== المرضى =====
   let query = '';
   let openId = null;
-  $('storeLabel').textContent = 'Patient profiles';
   $('patSearch').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderGrid(); });
   $('newPatBtn').addEventListener('click', () => {
     const f = $('newPatForm');
@@ -118,7 +133,7 @@ export function createSections({ scene, onNewScan }) {
     e.preventDefault();
     const pid = $('npId').value.trim();
     if (getPatient(pid.replace(/[^A-Za-z0-9_\-.~:@+]/g, '_'))) {
-      $('npMsg').className = 'msg err'; $('npMsg').textContent = 'A profile with this patient ID already exists.';
+      $('npMsg').className = 'msg err'; $('npMsg').textContent = t('pat.exists');
       return;
     }
     try {
@@ -149,13 +164,14 @@ export function createSections({ scene, onNewScan }) {
     return svg;
   }
 
+  const scanCount = (n) => (n === 1 ? t('pat.scan1') : t('pat.scans', { n }));
+
   function renderGrid() {
     const grid = $('patGrid');
     grid.innerHTML = '';
     const items = patients().filter((p) => !query || (p.name || '').toLowerCase().includes(query) || String(p.pid).toLowerCase().includes(query));
     if (!items.length) {
-      grid.appendChild(el('p', 'empty', query ? 'No patient matches this search.'
-        : 'No profiles yet. Create one here, or save an analysis result to a patient.'));
+      grid.appendChild(el('p', 'empty', query ? t('pat.noMatch') : t('pat.empty')));
       return;
     }
     for (const p of items) {
@@ -165,11 +181,11 @@ export function createSections({ scene, onNewScan }) {
       const av = el('span', 'mini-av', initials(p.name));
       if (lastScan) av.style.setProperty('--ring', lastScan.malignant ? '#ff3b5c' : '#27f5b0');
       const who = el('div');
-      who.append(el('b', null, p.name), el('small', null, `ID ${p.pid}${p.age ? ' · ' + p.age + ' y' : ''}`));
+      who.append(el('b', null, p.name), el('small', null, p.age ? t('pat.idAge', { id: p.pid, age: p.age }) : t('pat.idOnly', { id: p.pid })));
       const top = el('div', 'pat-top'); top.append(av, who);
       const foot = el('div', 'pat-foot');
       const pill = el('span', 'pill' + (lastScan ? (lastScan.malignant ? ' m' : ' b') : ''),
-        lastScan ? (lastScan.malignant ? 'Suspicious' : 'Benign') + ' · ' + (p.scans.length) + ' scan' + (p.scans.length > 1 ? 's' : '') : 'No scans yet');
+        lastScan ? (lastScan.malignant ? t('pat.suspicious') : t('pat.benign')) + ' · ' + scanCount(p.scans.length) : t('pat.noScans'));
       foot.append(pill, sparkline(p.scans || []));
       card.append(top, foot);
       card.addEventListener('click', () => showProfile(p.id));
@@ -177,11 +193,13 @@ export function createSections({ scene, onNewScan }) {
     }
   }
 
+  function storeLabel() {
+    $('storeLabel').textContent = storeKind() === 'cloud' ? t('pat.cloud') : t('pat.local');
+  }
+
   function showPatients() {
     openId = null;
-    $('storeLabel').textContent = storeKind() === 'cloud'
-      ? 'Patient profiles · Private to your account'
-      : 'Patient profiles · Saved on this device';
+    storeLabel();
     scene.setState('profile');
     scene.morph('helix');
     scene.place(2.9, 0, 0.85);
@@ -203,7 +221,10 @@ export function createSections({ scene, onNewScan }) {
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Suspicion score for each scan over time');
+    svg.setAttribute('aria-label', t('prof.chartAria'));
+    svg.setAttribute('direction', 'ltr');
+    svg.style.direction = 'ltr';
+    svg.style.unicodeBidi = 'isolate';
     const add = (tag, attrs, text) => {
       const n = document.createElementNS(svgNS, tag);
       for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
@@ -225,7 +246,7 @@ export function createSections({ scene, onNewScan }) {
     }
     add('line', { x1: L, x2: W - R, y1: y(0.5), y2: y(0.5), stroke: '#ffd36e', 'stroke-dasharray': '5 5', 'stroke-opacity': '.7' });
     if (!pts.length) {
-      add('text', { x: (L + W - R) / 2, y: H / 2, 'text-anchor': 'middle', class: 'axis' }, 'No scans yet');
+      add('text', { x: (L + W - R) / 2, y: H / 2, 'text-anchor': 'middle', class: 'axis' }, t('pat.noScans'));
       return svg;
     }
     const d = pts.map((s, i) => `${i ? 'L' : 'M'}${x(i)},${y(s.prob)}`).join(' ');
@@ -236,9 +257,8 @@ export function createSections({ scene, onNewScan }) {
       add('circle', { cx: x(i), cy: y(s.prob), r: lastOne ? 6 : 4, fill: s.malignant ? '#ff3b5c' : '#27f5b0', stroke: '#04060d', 'stroke-width': 2 });
       if (lastOne) add('text', { x: Math.min(x(i), W - R - 30), y: y(s.prob) - 12, 'text-anchor': 'middle', fill: '#eef3ff', 'font-size': 12, 'font-weight': 600 }, pct(s.prob));
     });
-    add('text', { x: x(0), y: H - 8, 'text-anchor': pts.length === 1 ? 'middle' : 'start', class: 'axis' }, fmtDate(pts[0].at));
-    if (pts.length > 1) add('text', { x: x(pts.length - 1), y: H - 8, 'text-anchor': 'end', class: 'axis' }, fmtDate(pts[pts.length - 1].at));
-    // نرسم الخط كأنه ينكتب
+    add('text', { x: x(0), y: H - 8, 'text-anchor': pts.length === 1 ? 'middle' : 'start', class: 'axis' }, fmtAxisDate(pts[0].at));
+    if (pts.length > 1) add('text', { x: x(pts.length - 1), y: H - 8, 'text-anchor': 'end', class: 'axis' }, fmtAxisDate(pts[pts.length - 1].at));
     requestAnimationFrame(() => {
       try {
         const len = path.getTotalLength();
@@ -248,25 +268,51 @@ export function createSections({ scene, onNewScan }) {
     return svg;
   }
 
+  // صورة مصغرة + خريطة الانتباه فوقها (إذا محفوظة)
+  function scanFigure(s) {
+    const item = el('figure', 'scan-item');
+    if (s.thumb) {
+      const wrap = el('div', 'thumb');
+      const img = el('img');
+      img.src = s.thumb;
+      img.alt = `${sideLabel(s.side)} ${s.view}`;
+      wrap.appendChild(img);
+      if (Array.isArray(s.heat) && s.heat.length) {
+        const c = el('canvas', 'heat');
+        img.decode().then(() => {
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          drawHeat(c.getContext('2d'), s.heat, c.width, c.height);
+        }).catch(() => {});
+        wrap.appendChild(c);
+      }
+      item.appendChild(wrap);
+    }
+    const cap = el('div');
+    cap.append(el('b', s.malignant ? 'm' : 'b', `${s.malignant ? t('pat.suspicious') : t('pat.benign')} · ${pct(s.conf)}`),
+      el('small', null, `${sideLabel(s.side)} ${s.view} · ${fmtDateTime(s.at)}`));
+    item.appendChild(cap);
+    return item;
+  }
+
   function renderProfile(p) {
     const scans = p.scans || [];
     const lastScan = scans[0];
     $('profInitials').textContent = initials(p.name);
     const av = $('profAvatar');
     av.style.setProperty('--ring', lastScan ? (lastScan.malignant ? '#ff3b5c' : '#27f5b0') : '#3fd8ff');
-    $('profEyebrow').textContent = `Patient ID ${p.pid}`;
+    $('profEyebrow').textContent = t('prof.pid', { v: p.pid });
     const meta = $('profMeta');
     meta.innerHTML = '';
-    for (const m of [p.age ? `Age ${p.age}` : 'Age not set', `${scans.length} scan${scans.length === 1 ? '' : 's'}`, `Profile since ${fmtDate(p.createdAt)}`]) meta.appendChild(el('span', null, m));
+    for (const m of [p.age ? t('prof.age', { v: p.age }) : t('prof.noAge'), scanCount(scans.length), t('prof.since', { v: fmtDate(p.createdAt) })]) meta.appendChild(el('span', null, m));
 
     const tiles = $('profTiles');
     tiles.innerHTML = '';
     const maxScan = scans.reduce((m, s) => (!m || s.prob > m.prob ? s : m), null);
-    const tile = (k, v, cls = '') => { const t = el('div', 'panel tile'); t.append(el('div', 'k', k), el('div', 'v ' + cls, v)); tiles.appendChild(t); };
-    tile('Latest result', lastScan ? (lastScan.malignant ? 'Suspicious' : 'Benign') : '—', lastScan ? (lastScan.malignant ? 'm' : 'b') : '');
-    tile('Latest score', lastScan ? pct(lastScan.prob) : '—');
-    tile('Highest score', maxScan ? pct(maxScan.prob) : '—', maxScan ? (maxScan.malignant ? 'm' : 'b') : '');
-    tile('Last scan', lastScan ? fmtDate(lastScan.at) : '—');
+    const tile = (k, v, cls = '') => { const tl = el('div', 'panel tile'); tl.append(el('div', 'k', k), el('div', 'v ' + cls, v)); tiles.appendChild(tl); };
+    tile(t('prof.latest'), lastScan ? (lastScan.malignant ? t('pat.suspicious') : t('pat.benign')) : '—', lastScan ? (lastScan.malignant ? 'm' : 'b') : '');
+    tile(t('prof.latestScore'), lastScan ? pct(lastScan.prob) : '—');
+    tile(t('prof.highest'), maxScan ? pct(maxScan.prob) : '—', maxScan ? (maxScan.malignant ? 'm' : 'b') : '');
+    tile(t('prof.last'), lastScan ? fmtDate(lastScan.at) : '—');
 
     const ch = $('profChart');
     ch.innerHTML = '';
@@ -274,16 +320,8 @@ export function createSections({ scene, onNewScan }) {
 
     const grid = $('profScans');
     grid.innerHTML = '';
-    if (!scans.length) grid.appendChild(el('p', 'empty', 'No scans yet. Start a new scan for this patient.'));
-    for (const s of scans) {
-      const item = el('figure', 'scan-item');
-      if (s.thumb) { const img = el('img'); img.src = s.thumb; img.alt = `${s.side} ${s.view} mammogram thumbnail`; item.appendChild(img); }
-      const cap = el('div');
-      cap.append(el('b', s.malignant ? 'm' : 'b', `${s.malignant ? 'Suspicious' : 'Benign'} · ${pct(s.conf)}`),
-        el('small', null, `${s.side} ${s.view} · ${fmtDate(s.at, { dateStyle: 'medium', timeStyle: 'short' })}`));
-      item.appendChild(cap);
-      grid.appendChild(item);
-    }
+    if (!scans.length) grid.appendChild(el('p', 'empty', t('prof.noScans')));
+    for (const s of scans) grid.appendChild(scanFigure(s));
     const notes = $('profNotes');
     if (document.activeElement !== notes) notes.value = p.notes || '';
     return lastScan;
@@ -291,7 +329,7 @@ export function createSections({ scene, onNewScan }) {
 
   function showProfile(id) {
     const p = getPatient(id);
-    if (!p) { toast('This profile no longer exists.', 'err'); return showPatients(); }
+    if (!p) { toast(t('prof.gone'), 'err'); return showPatients(); }
     openId = id;
     disarm();
     const lastScan = renderProfile(p);
@@ -312,16 +350,28 @@ export function createSections({ scene, onNewScan }) {
 
   // تحديث حي إذا تغيرت البيانات
   onPatients(() => {
-    if ($('stage-patients').classList.contains('active')) renderGrid();
+    if ($('stage-patients').classList.contains('active')) { storeLabel(); renderGrid(); }
     if (openId && $('stage-profile').classList.contains('active')) {
       const p = getPatient(openId);
       if (p) renderProfile(p); else showPatients();
     }
   });
 
+  // تبديل اللغة: نعيد رسم الأقسام بالنصوص الجديدة
+  onLang(() => {
+    renderGuide();
+    if ($('stage-devices').classList.contains('active')) { renderDeviceList(); renderDevice(device); }
+    if ($('stage-patients').classList.contains('active')) { storeLabel(); renderGrid(); }
+    if (openId && $('stage-profile').classList.contains('active')) {
+      const p = getPatient(openId);
+      if (p) { renderProfile(p); $('profName').textContent = p.name; }
+    }
+    disarm();
+  });
+
   $('profBack').addEventListener('click', () => showPatients());
   $('profNotes').addEventListener('change', async (e) => {
-    try { await updateNotes(openId, e.target.value); $('notesMsg').className = 'msg ok'; $('notesMsg').textContent = 'Notes saved.'; }
+    try { await updateNotes(openId, e.target.value); $('notesMsg').className = 'msg ok'; $('notesMsg').textContent = t('prof.notesSaved'); }
     catch (err) { $('notesMsg').className = 'msg err'; $('notesMsg').textContent = err.message; }
   });
   $('profScan').addEventListener('click', () => { const p = getPatient(openId); if (p) onNewScan(p); });
@@ -331,18 +381,18 @@ export function createSections({ scene, onNewScan }) {
     clearTimeout(armTimer);
     const b = $('profDelete');
     b.classList.remove('armed');
-    b.textContent = 'Delete profile';
+    b.textContent = t('prof.delete');
   }
   $('profDelete').addEventListener('click', async () => {
     const b = $('profDelete');
     if (!b.classList.contains('armed')) {
       b.classList.add('armed');
-      b.textContent = 'Tap again to delete for good';
+      b.textContent = t('prof.confirm');
       armTimer = setTimeout(disarm, 4000);
       return;
     }
     disarm();
-    try { await deletePatient(openId); toast('Profile deleted.', 'ok'); showPatients(); }
+    try { await deletePatient(openId); toast(t('prof.deleted'), 'ok'); showPatients(); }
     catch (err) { toast(err.message, 'err'); }
   });
 

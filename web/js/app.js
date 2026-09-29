@@ -1,10 +1,13 @@
-// واجهة الطبيب: مقدمة → مساحة العمل → المسح → النتيجة
+// واجهة الطبيب: مقدمة → مساحة العمل → المسح → النتيجة، + الأقسام (المرضى، الأجهزة، الإرشادات)
+import { t, applyStatic, setLang, getLang, isRTL, locale, onLang } from './i18n.js';
 import { createScene } from './scene.js';
 import { go, splitChars, scramble, toast, api, downloadBlob, storage } from './ui.js';
-import { loadModel, analyze as analyzeOnDevice } from './ondevice.js';
+import { loadModel, analyze as analyzeOnDevice, explain, drawHeat } from './ondevice.js';
 import { makeReport } from './report.js';
 import { createSections } from './sections.js';
 import { initStore, addScan, makeThumb, findByPid } from './store.js';
+
+applyStatic();
 
 const gsap = window.gsap;
 const $ = (id) => document.getElementById(id);
@@ -17,6 +20,7 @@ let MODE = 'server';
 const DEVICE_MODEL = 'EfficientNetB0 + XGBoost (on-device)';
 let file = null;
 let last = null;
+let modelState = 'loading';
 
 // ===== التبويبات =====
 const sections = createSections({
@@ -31,20 +35,20 @@ const sections = createSections({
 });
 
 function setTab(name) {
-  const tabs = $('tabs');
   let active = null;
-  tabs.querySelectorAll('button').forEach((b) => {
+  $('tabs').querySelectorAll('button').forEach((b) => {
     const on = b.dataset.tab === name;
     b.classList.toggle('on', on);
     if (on) { active = b; b.setAttribute('aria-current', 'page'); } else b.removeAttribute('aria-current');
   });
   if (active) gsap.to('#tabInk', { x: active.offsetLeft, width: active.offsetWidth, duration: 0.8, ease: 'expo.inOut' });
 }
-addEventListener('resize', () => setTab(document.querySelector('#tabs button.on')?.dataset.tab));
+const currentTab = () => document.querySelector('#tabs button.on')?.dataset.tab;
+addEventListener('resize', () => setTab(currentTab()));
 
 $('tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button');
-  if (!b || b.classList.contains('on') && b.dataset.tab !== 'patients') return;
+  if (!b || (b.classList.contains('on') && b.dataset.tab !== 'patients')) return;
   const tab = b.dataset.tab;
   setTab(tab);
   if (tab === 'analyze') {
@@ -52,6 +56,23 @@ $('tabs').addEventListener('click', (e) => {
   } else if (tab === 'devices') sections.showDevices();
   else if (tab === 'guide') sections.showGuide();
   else if (tab === 'patients') sections.showPatients();
+});
+
+// ===== اللغة =====
+$('langBtn').addEventListener('click', () => {
+  const next = getLang() === 'ar' ? 'en' : 'ar';
+  // وميض خفيف والجسيمات تنفجر وقت التبديل
+  gsap.timeline()
+    .to('.stage.active, .topbar', { opacity: 0, filter: 'blur(10px)', duration: 0.35, ease: 'power2.in' })
+    .add(() => { setLang(next); scene.burst(); })
+    .to('.stage.active, .topbar', { opacity: 1, filter: 'blur(0px)', duration: 0.7, ease: 'expo.out', clearProps: 'filter' });
+});
+onLang(() => {
+  scene.refreshPlace();
+  setTab(currentTab());
+  refreshModelLabel();
+  if (MODE === 'device') $('downloadLabel').textContent = t('res.view');
+  if (last) renderResultText(last, false);
 });
 
 // ===== البداية =====
@@ -76,27 +97,35 @@ async function boot() {
   requestAnimationFrame(() => setTab('analyze'));
 }
 
+function refreshModelLabel() {
+  if (MODE !== 'device') return;
+  if (modelState === 'ready') $('modelName').textContent = t('model.ready');
+  else if (modelState === 'offline') $('modelName').textContent = t('model.offline');
+}
+
 function setupDevice() {
   MODE = 'device';
   $('modeBadge').hidden = false;
   $('portalLink').hidden = true;
   $('saveBtn').hidden = true;
-  $('download').innerHTML = 'View report <span class="arrow">→</span>';
+  $('downloadLabel').dataset.i18n = 'res.view';
+  $('downloadLabel').textContent = t('res.view');
   const label = $('modelName');
   label.textContent = '0%';
-  loadModel((p) => { label.textContent = Math.round(p * 100) + '%'; })
+  loadModel((p) => { if (modelState === 'loading') label.textContent = Math.round(p * 100) + '%'; })
     .then(() => {
-      label.textContent = 'Ready';
+      modelState = 'ready';
+      refreshModelLabel();
       gsap.fromTo(label, { color: '#27f5b0' }, { color: '#eef3ff', duration: 2 });
     })
-    .catch(() => { label.textContent = 'Offline'; toast('Could not load the AI model. Check your connection.', 'err'); });
+    .catch(() => { modelState = 'offline'; refreshModelLabel(); toast(t('model.loadErr'), 'err'); });
 }
 
 function showIntro() {
   $('openRegister').hidden = MODE === 'device';
   $('tabs').hidden = false;
   setTab('analyze');
-  scene.morph('orb');
+  scene.morph('breast');
   scene.place(1.7, 0, 1.15);
   scene.setState('idle');
   go('stage-intro', {
@@ -126,7 +155,7 @@ $('lockForm').addEventListener('submit', async (e) => {
 function handleAuthError(err) {
   if (err.status === 401) {
     token = ''; storage('doctorToken', null);
-    toast('Session expired — please sign in again.', 'err');
+    toast(t('auth.expired'), 'err');
     $('tabs').hidden = true;
     scene.place(0, 0, 0.9);
     go('stage-lock');
@@ -138,7 +167,7 @@ function handleAuthError(err) {
 // ===== مساحة العمل =====
 function openWork() {
   setTab('analyze');
-  scene.morph('orb');
+  scene.morph('breast');
   scene.setState('idle');
   scene.place(2.6, 0.2, 0.85);
   return go('stage-work');
@@ -152,7 +181,9 @@ document.querySelectorAll('.seg').forEach((seg) => {
     seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   });
 });
-const segValue = (name) => document.querySelector(`.seg[data-name="${name}"] .on`).textContent;
+// القيمة الإنكليزية الثابتة (Right/Left/CC/MLO) بغض النظر عن لغة الواجهة
+const segValue = (name) => document.querySelector(`.seg[data-name="${name}"] .on`).dataset.value;
+const sideText = () => t('side.' + segValue('side'));
 
 const drop = $('drop');
 ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
@@ -162,13 +193,14 @@ $('file').addEventListener('change', (e) => { if (e.target.files[0]) setFile(e.t
 
 function setFile(f) {
   if (!f.type.startsWith('image/') && !/\.(tif|tiff|png|jpe?g)$/i.test(f.name)) {
-    toast('Please choose an image file.', 'err');
+    toast(t('work.notImage'), 'err');
     return;
   }
   file = f;
   const url = URL.createObjectURL(f);
   let img = drop.querySelector('img');
-  if (!img) { img = document.createElement('img'); img.alt = 'Uploaded mammogram'; drop.appendChild(img); }
+  if (!img) { img = document.createElement('img'); drop.appendChild(img); }
+  img.alt = t('work.uploaded');
   img.src = url;
   $('scanImg').src = url;
   gsap.fromTo(img, { scale: 1.15, opacity: 0, filter: 'blur(20px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: 1, ease: 'expo.out' });
@@ -177,24 +209,47 @@ function setFile(f) {
 }
 
 // ===== المسح =====
-const STEPS = [
-  'Normalizing image intensity',
-  'Resizing to model input',
-  'Extracting deep features',
-  'Scoring tissue patterns',
-  'Calibrating probability',
-];
+const STEPS = ['scan.s1', 'scan.s2', 'scan.s3', 'scan.s4', 'scan.s5'];
+
+async function logLine(text, ms = 420) {
+  const line = document.createElement('div');
+  $('scanLog').appendChild(line);
+  await scramble(line, `> ${text}`, ms);
+  line.innerHTML += ' <span class="ok">✓</span>';
+}
+
+// مكان الصورة داخل الإطار (object-fit: contain) حتى الخريطة تنطبق عليها بالضبط
+function containRect(img, box) {
+  const bw = box.clientWidth, bh = box.clientHeight;
+  const s = Math.min(bw / img.naturalWidth, bh / img.naturalHeight);
+  const w = img.naturalWidth * s, h = img.naturalHeight * s;
+  return { x: (bw - w) / 2, y: (bh - h) / 2, w, h };
+}
+
+function paintScanHeat(heat, reveal = true) {
+  const frame = $('scanFrame'), c = $('scanHeat'), img = $('scanImg');
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = frame.clientWidth * dpr; c.height = frame.clientHeight * dpr;
+  const r = containRect(img, frame);
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.save();
+  ctx.translate(r.x * dpr, r.y * dpr);
+  drawHeat(ctx, heat, r.w * dpr, r.h * dpr);
+  ctx.restore();
+  if (reveal) gsap.fromTo(c, { opacity: 0, clipPath: 'inset(0 0 100% 0)' }, { opacity: 1, clipPath: 'inset(0 0 0% 0)', duration: 1.4, ease: 'power2.inOut' });
+}
 
 $('analyze').addEventListener('click', async () => {
   if (!file) return;
-  scene.morph('orb');
-  scene.place(0, 0, 1.7);
+  scene.morph('breast');
+  scene.place(0, 0, 1.12);
   scene.setState('scan');
+  gsap.set('#scanHeat', { opacity: 0 });
   await go('stage-scan');
 
   const beam = gsap.fromTo('.scan-frame .beam', { top: '-120px' }, { top: '100%', duration: 1.6, ease: 'sine.inOut', repeat: -1, yoyo: true });
-  const log = $('scanLog');
-  log.innerHTML = '';
+  $('scanLog').innerHTML = '';
   gsap.set('#scanBar', { width: '0%' });
 
   const form = new FormData();
@@ -211,38 +266,38 @@ $('analyze').addEventListener('click', async () => {
   // نعرض الخطوات بينما الطلب شغال، وأقل مدة 2.8 ثانية حتى الانتقال يبين
   const shown = (async () => {
     for (let i = 0; i < STEPS.length; i++) {
-      const line = document.createElement('div');
-      log.appendChild(line);
-      await scramble(line, `> ${STEPS[i]}`, 380);
-      line.innerHTML += ' <span class="ok">✓</span>';
-      gsap.to('#scanBar', { width: `${((i + 1) / STEPS.length) * 90}%`, duration: 0.4 });
+      await logLine(t(STEPS[i]), 380);
+      gsap.to('#scanBar', { width: `${((i + 1) / STEPS.length) * 70}%`, duration: 0.4 });
       await new Promise((r) => setTimeout(r, 180));
     }
   })();
 
   try {
     const [res] = await Promise.all([request, shown]);
-    gsap.to('#scanBar', { width: '100%', duration: 0.3 });
     if (MODE === 'device') {
-      // نعرض الأرقام الحقيقية من الموديل قبل النتيجة
+      // الأرقام الحقيقية من الموديل
       await drawFeatures(res.features);
-      for (const text of [
-        `> ${res.features.length.toLocaleString()} features in ${Math.round(res.featureMs)} ms`,
-        `> ${res.trees} decision trees voted in ${res.treeMs.toFixed(1)} ms`,
-      ]) {
-        const line = document.createElement('div');
-        log.appendChild(line);
-        await scramble(line, text, 420);
-        line.innerHTML += ' <span class="ok">✓</span>';
-      }
-      await new Promise((r) => setTimeout(r, 700));
+      await logLine(t('scan.features', { n: res.features.length.toLocaleString(), ms: Math.round(res.featureMs) }));
+      await logLine(t('scan.trees', { n: res.trees, ms: res.treeMs.toFixed(1) }));
+      // خريطة الانتباه: نغطي كل منطقة ونشوف شكد تتغير النتيجة
+      try {
+        // على أجهزة بدون كرت شاشة (WebGL) الخريطة تاخذ وقت طويل، فنتجاوزها
+        const { backend } = await loadModel();
+        if (backend !== 'webgl') throw new Error('skip');
+        const ex = await explain($('scanImg'), res.probability, (p) => gsap.to('#scanBar', { width: `${70 + p * 30}%`, duration: 0.3 }));
+        res.heat = ex.heat;
+        paintScanHeat(ex.heat);
+        await logLine(t('scan.attn', { n: ex.probes, ms: Math.round(ex.ms) }));
+      } catch { /* الخريطة إضافة، إذا فشلت نكمل بدونها */ }
+      await new Promise((r) => setTimeout(r, 1400));
     }
+    gsap.to('#scanBar', { width: '100%', duration: 0.3 });
     beam.kill();
     showResult(res);
   } catch (err) {
     beam.kill();
     if (handleAuthError(err)) return;
-    toast(err.message || 'Analysis failed', 'err');
+    toast(err.message || t('scan.failed'), 'err');
     scene.setState('idle');
     scene.place(2.6, 0.2, 0.85);
     go('stage-work');
@@ -252,7 +307,7 @@ $('analyze').addEventListener('click', async () => {
 // ===== التحليل بالمتصفح =====
 async function runOnDevice() {
   const img = $('scanImg');
-  try { await img.decode(); } catch { throw new Error('This browser cannot read this image. Try PNG or JPG.'); }
+  try { await img.decode(); } catch { throw new Error(t('scan.cantRead')); }
   const r = await analyzeOnDevice(img);
   r.thumb = makeThumb(img);
   const malignant = r.probability >= 0.5;
@@ -284,7 +339,6 @@ function drawFeatures(features) {
         for (let i = 0; i < upto; i++) {
           const v = Math.sqrt(Math.abs(features[i]) / (max || 1));
           const x = (i % FEAT_COLS) * cw, y = Math.floor(i / FEAT_COLS) * ch;
-          // من سمائي (ضعيف) إلى وردي (قوي)
           const r = Math.round(63 + (255 - 63) * v), g = Math.round(216 - (216 - 79) * v), b = Math.round(255 - (255 - 154) * v);
           ctx.fillStyle = `rgba(${r},${g},${b},${0.12 + v * 0.88})`;
           ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
@@ -298,42 +352,65 @@ function drawFeatures(features) {
 // ===== النتيجة =====
 function showLastResult() {
   const cls = last.malignant ? 'malignant' : 'benign';
-  scene.morph('orb');
+  scene.morph('breast');
   scene.setState(cls);
-  scene.place(2.2, 0, 1.25);
+  scene.place(2.3, 0, 1.05);
   return go('stage-result');
+}
+
+// نصوص النتيجة (تنعاد لما تتغير اللغة)
+function renderResultText(res, fresh) {
+  $('verdictTag').textContent = res.malignant ? t('res.suspicious') : t('res.clear');
+  if (!fresh) $('verdict').textContent = res.malignant ? t('res.malignant') : t('res.benign');
+  const btn = $('profileBtn');
+  if (btn.dataset.open) btn.innerHTML = `${t('res.openProfile')} <span class="arrow">→</span>`;
+  else btn.textContent = findByPid($('pId').value.trim()) ? t('res.addProfile') : t('res.saveProfile');
+  const meta = [
+    $('pName').value.trim() || t('res.unnamed'),
+    t('res.id', { v: $('pId').value.trim() || '—' }),
+    t('res.age', { v: $('pAge').value || '—' }),
+    sideText() + ' · ' + segValue('view'),
+    res.model,
+  ];
+  $('meta').innerHTML = '';
+  for (const m of meta) { const s = document.createElement('span'); s.textContent = m; $('meta').appendChild(s); }
 }
 
 function showResult(res) {
   last = res;
   if (!last.thumb) { try { last.thumb = makeThumb($('scanImg')); } catch { /* الصورة ما تنقرأ */ } }
   $('profileBtn').disabled = false;
-  $('profileBtn').textContent = findByPid($('pId').value.trim()) ? 'Add to patient profile' : 'Save to patient profile';
   delete $('profileBtn').dataset.open;
   const cls = res.malignant ? 'malignant' : 'benign';
-  const box = $('result');
-  box.className = 'result ' + cls;
-  $('verdictTag').textContent = res.malignant ? '⚠ Suspicious finding' : '✓ No suspicious finding';
-  const words = res.malignant ? 'Malignant' : 'Benign';
+  $('result').className = 'result ' + cls;
   $('saveMsg').textContent = '';
   $('saveBtn').disabled = false;
-  $('saveBtn').textContent = 'Save to patient portal';
+  $('saveBtn').textContent = t('res.savePortal');
+  renderResultText(res, true);
 
-  const meta = [
-    $('pName').value.trim() || 'Unnamed patient',
-    'ID ' + ($('pId').value.trim() || '—'),
-    'Age ' + ($('pAge').value || '—'),
-    segValue('side') + ' · ' + segValue('view'),
-    res.model,
-  ];
-  $('meta').innerHTML = '';
-  for (const m of meta) { const s = document.createElement('span'); s.textContent = m; $('meta').appendChild(s); }
+  // خريطة الانتباه المصغرة
+  const hasHeat = Array.isArray(res.heat);
+  $('attn').hidden = !hasHeat;
+  $('viewerHeat').hidden = !hasHeat;
+  if (hasHeat) {
+    const img = $('attnImg');
+    img.src = $('scanImg').src;
+    img.alt = t('attn.title');
+    img.decode().then(() => {
+      const c = $('attnHeat');
+      c.width = img.naturalWidth > 600 ? 600 : img.naturalWidth;
+      c.height = Math.round(c.width * img.naturalHeight / img.naturalWidth);
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      drawHeat(ctx, res.heat, c.width, c.height);
+    }).catch(() => {});
+  }
 
   scene.setState(cls);
-  scene.place(2.2, 0, 1.25);
+  scene.place(2.3, 0, 1.05);
   go('stage-result', {
     onEnter() {
-      const chars = splitChars($('verdict'), words);
+      const chars = splitChars($('verdict'), res.malignant ? t('res.malignant') : t('res.benign'));
       gsap.from(chars, { yPercent: 120, opacity: 0, rotateX: -90, duration: 1.1, ease: 'expo.out', stagger: 0.05, delay: 0.25 });
       const pct = { v: 0 };
       gsap.to(pct, {
@@ -341,6 +418,7 @@ function showResult(res) {
         onUpdate: () => { $('confNum').textContent = pct.v.toFixed(1) + '%'; },
       });
       gsap.fromTo('#confBar', { width: '0%' }, { width: (res.confidence * 100).toFixed(1) + '%', duration: 1.8, ease: 'power3.out', delay: 0.4 });
+      if (hasHeat) gsap.fromTo('#attnHeat', { opacity: 0 }, { opacity: 1, duration: 1.6, delay: 1, ease: 'power2.inOut' });
     },
   });
 }
@@ -352,23 +430,26 @@ function patientInfo() {
   };
 }
 
-// بالنسخة اللي تشتغل بالمتصفح نعرض التقرير داخل الصفحة، وتنزيل الـ PDF إذا الصفحة مو داخل إطار
+// التقرير داخل الصفحة، وتنزيل الـ PDF إذا متاح
 function openSheet() {
   const p = patientInfo();
   const pct = (last.confidence * 100).toFixed(1) + '%';
-  $('sheetDate').textContent = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const label = last.malignant ? t('res.labelM') : t('res.labelB');
+  $('sheetDate').textContent = new Date().toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
   const dl = $('sheetPatient');
   dl.innerHTML = '';
-  for (const [k, v] of [['Full name', p.name || '—'], ['Patient ID', p.pid || '—'], ['Age', p.age], ['Breast side', p.side], ['View', p.view]]) {
+  for (const [k, v] of [[t('f.name'), p.name || '—'], [t('f.pid'), p.pid || '—'], [t('f.age'), p.age], [t('f.side'), sideText()], [t('f.view'), p.view]]) {
     const dt = document.createElement('dt'); dt.textContent = k;
     const dd = document.createElement('dd'); dd.textContent = v;
     dl.append(dt, dd);
   }
-  $('sheetResult').textContent = 'Classification: ' + last.label;
+  $('sheetResult').textContent = t('sheet.class', { v: label });
   $('sheetResult').className = 'sheet-result ' + (last.malignant ? 'm' : 'b');
-  $('sheetConf').textContent = 'Model confidence: ' + pct;
-  $('sheetSummary').textContent = `The automated analysis classified the uploaded mammogram as '${last.label}' with a model confidence of ${pct}. This output is produced by an AI-based screening model (${last.model}).`;
-  $('sheetPdf').hidden = !downloads && window.self !== window.top;
+  $('sheetConf').textContent = t('sheet.conf', { v: pct });
+  $('sheetSummary').textContent = t('sheet.sumText', { label, pct, model: last.model });
+  const canPdf = !!downloads || window.self === window.top;
+  $('sheetPdf').hidden = !canPdf;
+  $('pdfNote').hidden = !canPdf || getLang() !== 'ar';
   $('sheet').hidden = false;
   gsap.fromTo('#sheet', { opacity: 0 }, { opacity: 1, duration: 0.4 });
   gsap.fromTo('.sheet', { y: 60, rotateX: 12, opacity: 0 }, { y: 0, rotateX: 0, opacity: 1, duration: 0.8, ease: 'expo.out' });
@@ -388,7 +469,7 @@ $('sheetPdf').addEventListener('click', async () => {
     else downloadBlob(blob, filename);
   } catch (err) {
     if (err?.code === 'declined') return;
-    toast(err?.message || 'Could not create the PDF.', 'err');
+    toast(err?.message || t('sheet.pdfErr'), 'err');
   }
 });
 
@@ -406,9 +487,9 @@ $('saveBtn').addEventListener('click', async () => {
   try {
     await api(`/api/analyses/${last.analysis_id}/save`, { method: 'POST', token });
     msg.className = 'msg ok';
-    msg.textContent = 'Saved. The patient can now open this report in the portal.';
+    msg.textContent = t('res.portalSaved');
     $('saveBtn').disabled = true;
-    $('saveBtn').textContent = 'Saved ✓';
+    $('saveBtn').textContent = t('res.saved');
   } catch (err) {
     if (handleAuthError(err)) return;
     msg.className = 'msg err';
@@ -431,7 +512,7 @@ $('profileBtn').addEventListener('click', async () => {
   const pid = $('pId').value.trim();
   if (!pid || !last) {
     $('saveMsg').className = 'msg err';
-    $('saveMsg').textContent = 'Enter a Patient ID on the previous step to save this result to a profile.';
+    $('saveMsg').textContent = t('res.needPid');
     return;
   }
   btn.disabled = true;
@@ -439,21 +520,26 @@ $('profileBtn').addEventListener('click', async () => {
     const p = await addScan(pid, {
       prob: last.probability, conf: last.confidence, label: last.label, malignant: !!last.malignant,
       side: segValue('side'), view: segValue('view'), model: last.model, thumb: last.thumb || '',
+      heat: last.heat || null,
     }, { name: $('pName').value.trim(), age: $('pAge').value });
     btn.dataset.open = p.id;
-    btn.innerHTML = 'Open profile <span class="arrow">→</span>';
+    btn.innerHTML = `${t('res.openProfile')} <span class="arrow">→</span>`;
     $('saveMsg').className = 'msg ok';
-    $('saveMsg').textContent = `Saved to ${p.name}'s profile.`;
+    $('saveMsg').textContent = t('res.savedTo', { name: p.name });
   } catch (err) {
     $('saveMsg').className = 'msg err';
     $('saveMsg').textContent = err.message;
   } finally { btn.disabled = false; }
 });
 
-// ===== عارض الدقة الكاملة (حتى 4K وأكثر) =====
+// ===== عارض الدقة الكاملة (حتى 4K وأكثر) مع خريطة الانتباه =====
 const view = { s: 1, x: 0, y: 0, min: 1 };
-const vImg = $('viewerImg'), vStage = $('viewerStage');
-function applyView() { vImg.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`; }
+const vImg = $('viewerImg'), vStage = $('viewerStage'), vHeat = $('viewerHeatLayer');
+function applyView() {
+  const tf = `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
+  vImg.style.transform = tf;
+  vHeat.style.transform = tf;
+}
 function fitView() {
   const w = vStage.clientWidth, h = vStage.clientHeight;
   const s = Math.min(w / vImg.naturalWidth, h / vImg.naturalHeight);
@@ -467,18 +553,37 @@ function zoomAt(cx, cy, factor) {
   view.x = cx - (cx - view.x) * k; view.y = cy - (cy - view.y) * k; view.s = s;
   applyView();
 }
-$('inspectBtn').addEventListener('click', async () => {
+function setViewerHeat(on) {
+  $('viewerHeat').setAttribute('aria-pressed', on);
+  $('viewerHeat').classList.toggle('on', on);
+  vHeat.hidden = !on;
+  if (on) gsap.fromTo(vHeat, { opacity: 0 }, { opacity: 1, duration: 0.8 });
+}
+async function openViewer(withHeat) {
   vImg.src = $('scanImg').src;
-  try { await vImg.decode(); } catch { toast('This image cannot be displayed in the browser.', 'err'); return; }
+  try { await vImg.decode(); } catch { toast(t('view.cant'), 'err'); return; }
   const w = vImg.naturalWidth, h = vImg.naturalHeight;
   const tier = Math.max(w, h) >= 3840 ? ' · 4K+' : '';
-  $('viewerInfo').textContent = `${w} × ${h} px · ${(w * h / 1e6).toFixed(1)} MP${tier} · native resolution`;
+  $('viewerInfo').textContent = t('view.info', { w, h, mp: (w * h / 1e6).toFixed(1), tier });
+  if (last?.heat) {
+    // الخريطة بحجم الصورة الأصلي (بحد أقصى 2048) وتتكبر وياها
+    const s = Math.min(1, 2048 / Math.max(w, h));
+    vHeat.width = Math.round(w * s); vHeat.height = Math.round(h * s);
+    vHeat.style.width = w + 'px'; vHeat.style.height = h + 'px';
+    const ctx = vHeat.getContext('2d');
+    ctx.clearRect(0, 0, vHeat.width, vHeat.height);
+    drawHeat(ctx, last.heat, vHeat.width, vHeat.height);
+  }
   $('viewer').hidden = false;
   fitView();
+  setViewerHeat(!!withHeat && !!last?.heat);
   gsap.fromTo('#viewer', { opacity: 0 }, { opacity: 1, duration: 0.5 });
   gsap.fromTo(vImg, { opacity: 0, filter: 'blur(30px)' }, { opacity: 1, filter: 'blur(0px)', duration: 1.2, ease: 'expo.out' });
   $('viewerClose').focus();
-});
+}
+$('inspectBtn').addEventListener('click', () => openViewer(false));
+$('attnOpen').addEventListener('click', () => openViewer(true));
+$('viewerHeat').addEventListener('click', () => setViewerHeat(vHeat.hidden));
 $('viewerReset').addEventListener('click', fitView);
 $('viewerClose').addEventListener('click', () => gsap.to('#viewer', { opacity: 0, duration: 0.35, onComplete: () => { $('viewer').hidden = true; } }));
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('viewer').hidden) $('viewerClose').click(); });
@@ -510,12 +615,12 @@ vStage.addEventListener('pointerup', endPointer);
 vStage.addEventListener('pointercancel', endPointer);
 vStage.addEventListener('dblclick', (e) => { const r = vStage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); });
 
-// ===== درج التسجيل =====
+// ===== درج التسجيل (نسخة السيرفر) =====
 function drawer(open) {
   gsap.to('#drawer', { x: open ? '0%' : '100%', duration: 0.7, ease: 'expo.inOut' });
   gsap.to('#scrim', { autoAlpha: open ? 1 : 0, duration: 0.5 });
   if (open) {
-    gsap.from('#regForm > *', { x: 40, opacity: 0, stagger: 0.05, duration: 0.6, ease: 'expo.out', delay: 0.25 });
+    gsap.from('#regForm > *', { x: isRTL() ? -40 : 40, opacity: 0, stagger: 0.05, duration: 0.6, ease: 'expo.out', delay: 0.25 });
     setTimeout(() => $('rName').focus(), 400);
   }
 }
@@ -533,7 +638,7 @@ $('regForm').addEventListener('submit', async (e) => {
       body: { full_name: $('rName').value.trim(), patient_id: $('rId').value.trim(), password: $('rPass').value },
     });
     msg.className = 'msg ok';
-    msg.textContent = `Account created for ${$('rName').value.trim()}.`;
+    msg.textContent = t('reg.done', { name: $('rName').value.trim() });
     if (!$('pId').value) { $('pId').value = $('rId').value.trim(); $('pName').value = $('rName').value.trim(); }
     e.target.reset();
   } catch (err) {

@@ -45,12 +45,15 @@ export function go(id, { onEnter } = {}) {
 }
 
 // يقسم النص لحروف حتى نحركها وحدة وحدة
+// العربي ما ينقسم لحروف (الحروف تنفصل عن بعض)، فنقسمه لكلمات
+const ARABIC = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
 export function splitChars(el, text) {
   el.textContent = '';
-  for (const ch of text) {
+  const parts = ARABIC.test(text) ? text.split(/(\s+)/).filter(Boolean) : [...text];
+  for (const ch of parts) {
     const s = document.createElement('span');
     s.className = 'char';
-    s.textContent = ch === ' ' ? ' ' : ch;
+    s.textContent = /^\s+$/.test(ch) ? '\u00a0' : ch;
     el.appendChild(s);
   }
   return el.querySelectorAll('.char');
@@ -58,6 +61,18 @@ export function splitChars(el, text) {
 
 // يقلب النص بحروف عشوائية قبل ما يستقر (تأثير "فك تشفير")
 export function scramble(el, finalText, duration = 900) {
+  if (ARABIC.test(finalText)) {
+    // للعربي: كتابة تدريجية بدل الحروف العشوائية حتى الكلمات تبقى متصلة
+    const start = performance.now();
+    return new Promise((resolve) => {
+      function frame(now) {
+        const p = Math.min((now - start) / duration, 1);
+        el.textContent = finalText.slice(0, Math.ceil(p * finalText.length));
+        if (p < 1) requestAnimationFrame(frame); else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
   const glyphs = '01<>/\\#%&*+=ABCDEFXYZ';
   const start = performance.now();
   return new Promise((resolve) => {

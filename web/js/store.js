@@ -3,6 +3,8 @@
 // - برا claude.ai: على نفس الجهاز (localStorage)
 // كل مريضة = وثيقة وحدة فيها معلوماتها وآخر الفحوصات (مع صورة مصغرة)
 
+import { t } from './i18n.js';
+
 const LOCAL_KEY = 'mammo.patients.v1';
 const MAX_SCANS = 14; // حتى الوثيقة تبقى أصغر من 256KB
 
@@ -20,7 +22,7 @@ function localBackend() {
   const read = () => { try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); } catch { return []; } };
   const write = (list) => {
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); }
-    catch { throw new Error('This browser has no room left to save patients. Delete old profiles and try again.'); }
+    catch { throw new Error(t('store.full')); }
   };
   return {
     kind: 'local',
@@ -51,9 +53,9 @@ async function cloudBackend() {
       const { id, ...body } = p;
       try { await col.doc(id).set(JSON.parse(JSON.stringify(body))); }
       catch (e) {
-        if (e?.code === 'quota_exceeded') throw new Error('Patient storage is full. Delete old profiles to add new ones.');
-        if (e?.code === 'invalid_argument') throw new Error('Could not save. You may only have view access to this page.');
-        throw new Error('Could not save right now. Try again in a moment.');
+        if (e?.code === 'quota_exceeded') throw new Error(t('store.quota'));
+        if (e?.code === 'invalid_argument') throw new Error(t('store.readonly'));
+        throw new Error(t('store.later'));
       }
     },
     async remove(id) { await col.doc(id).delete(); },

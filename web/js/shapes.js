@@ -236,16 +236,174 @@ function shield(n) {
   return out;
 }
 
-const BUILDERS = { orb, mammo, dbt, cem, ultrasound, mri, ai, helix, shield };
+// ===== الثدي: نموذج تشريحي (مقطع جانبي ثلاثي الأبعاد) =====
+// جدار الصدر على اليسار (x سالب)، الحلمة على اليمين. كل جزء تشريحي له لون خاص،
+// والقنوات فيها "تدفق" (قيمة من الجدار للحلمة) حتى نمشي نبضات ضوء عليها.
+const TINT = {
+  skin: [0.55, 0.62, 0.85], fat: [0.95, 0.72, 0.45], lobule: [1.0, 0.36, 0.62], duct: [0.35, 0.9, 1.0],
+  nipple: [1.0, 0.55, 0.65], ligament: [0.75, 0.8, 1.0], muscle: [1.0, 0.3, 0.35], rib: [0.92, 0.95, 1.0],
+  lymph: [0.3, 1.0, 0.7], lesion: [1.0, 0.25, 0.1],
+};
+// شكل الثدي: نصف قطر المقطع عند مسافة u (0 = جدار الصدر، 1 = الحلمة)
+const B = { x0: -0.95, x1: 1.0, R: 1.35 };
+function envelope(u) {
+  const r = B.R * Math.pow(Math.max(0, 1 - Math.pow(u, 2.2)), 0.55);
+  return { r, cy: -0.28 * u * u }; // القطب السفلي أمتلأ (ينزل شوية)
+}
+function insideBreast(p) {
+  const u = (p.x - B.x0) / (B.x1 - B.x0);
+  if (u < 0 || u > 1) return false;
+  const e = envelope(u);
+  return Math.hypot(p.y - e.cy, p.z * 1.05) < e.r;
+}
+
+function breast(n) {
+  const pos = new Float32Array(n * 3), tint = new Float32Array(n * 3), flow = new Float32Array(n).fill(-1), flag = new Float32Array(n);
+  let k = 0;
+  const put = (v, part, f = -1, fl = 0) => {
+    if (k >= n) return;
+    pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z;
+    const c = TINT[part];
+    tint[k * 3] = c[0]; tint[k * 3 + 1] = c[1]; tint[k * 3 + 2] = c[2];
+    flow[k] = f; flag[k] = fl;
+    k++;
+  };
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const budget = (f) => Math.floor(n * f);
+
+  // الجلد: سطح دوراني خفيف
+  for (let i = 0, m = budget(0.13); i < m; i++) {
+    const u = Math.pow(rnd(), 0.8), a = rnd() * Math.PI * 2, e = envelope(u);
+    put(V(B.x0 + u * (B.x1 - B.x0), e.cy + Math.cos(a) * e.r, Math.sin(a) * e.r / 1.05), 'skin');
+  }
+  // الحلمة والهالة
+  const tip = V(B.x1 - 0.02, envelope(1).cy - 0.02, 0);
+  for (let i = 0, m = budget(0.03); i < m; i++) {
+    const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+    const areola = rnd() < 0.6;
+    const rr = areola ? 0.12 + r * 0.26 : r * 0.11;
+    put(V(tip.x - (areola ? 0.06 + rr * 0.35 : -0.05 * (1 - r)), tip.y + Math.cos(a) * rr, Math.sin(a) * rr), 'nipple');
+  }
+  // القنوات والفصيصات: 16 فص، كل فص قناة من الحلمة ترجع للخلف وتتفرع، وبنهاياتها عناقيد
+  const lobes = 16, ductCurves = [], lobuleCenters = [];
+  for (let L = 0; L < lobes; L++) {
+    const a = (L / lobes) * Math.PI * 2 + rnd() * 0.2;
+    const spread = 0.35 + rnd() * 0.55;
+    const start = V(tip.x - 0.08, tip.y + Math.cos(a) * 0.05, Math.sin(a) * 0.05);
+    const mid = V(0.35, envelope(0.68).cy + Math.cos(a) * spread * 0.7, Math.sin(a) * spread * 0.7);
+    const trunk = [start, V(0.72, tip.y + Math.cos(a) * 0.12, Math.sin(a) * 0.12), mid];
+    ductCurves.push(new THREE.CatmullRomCurve3(trunk));
+    // تفرعات
+    for (let b = 0; b < 4; b++) {
+      const ang = a + (rnd() - 0.5) * 0.9;
+      const depth = -0.55 + rnd() * 0.7;
+      const rad = (0.45 + rnd() * 0.6) * envelope(Math.max(0, (depth - B.x0) / (B.x1 - B.x0))).r;
+      const end = V(depth, envelope((depth - B.x0) / (B.x1 - B.x0)).cy + Math.cos(ang) * rad * 0.82, Math.sin(ang) * rad * 0.82);
+      const via = mid.clone().lerp(end, 0.5).add(V(0, (rnd() - 0.5) * 0.15, (rnd() - 0.5) * 0.15));
+      ductCurves.push(new THREE.CatmullRomCurve3([mid, via, end]));
+      lobuleCenters.push(end);
+    }
+  }
+  // القنوات مع قيمة التدفق (0 عند الجدار → 1 عند الحلمة)
+  const ductN = budget(0.14);
+  for (let i = 0; i < ductN; i++) {
+    const c = ductCurves[i % ductCurves.length], t = rnd(), p = c.getPoint(t);
+    p.add(V((rnd() - 0.5) * 0.012, (rnd() - 0.5) * 0.012, (rnd() - 0.5) * 0.012));
+    const f = (p.x - B.x0) / (B.x1 - B.x0);
+    put(p, 'duct', f);
+  }
+  // الفصيصات: عناقيد كروية صغيرة (acini)
+  const lobN = budget(0.1);
+  for (let i = 0; i < lobN; i++) {
+    const c = lobuleCenters[i % lobuleCenters.length];
+    const sub = V((rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3);
+    const a = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1), r = 0.04 + rnd() * 0.03;
+    put(c.clone().add(sub).add(V(r * Math.sin(ph) * Math.cos(a), r * Math.sin(ph) * Math.sin(a), r * Math.cos(ph))), 'lobule', (c.x - B.x0) / (B.x1 - B.x0) * 0.6);
+  }
+  // الدهون: حجم خفيف داخل الثدي
+  for (let i = 0, m = budget(0.18); i < m;) {
+    const p = V(B.x0 + rnd() * (B.x1 - B.x0), (rnd() - 0.5) * 2.9, (rnd() - 0.5) * 2.9);
+    if (insideBreast(p)) { put(p, 'fat'); i++; }
+  }
+  // أربطة كوبر: خيوط من الجدار للجلد
+  const ligs = [];
+  for (let i = 0; i < 22; i++) {
+    const a = rnd() * Math.PI * 2, u = 0.25 + rnd() * 0.55, e = envelope(u);
+    const sx = B.x0 + u * (B.x1 - B.x0);
+    ligs.push(new THREE.CatmullRomCurve3([V(B.x0 + 0.05, e.cy * 0.3 + Math.cos(a) * e.r * 0.5, Math.sin(a) * e.r * 0.5),
+      V((sx + B.x0) / 2, e.cy * 0.7 + Math.cos(a) * e.r * 0.8, Math.sin(a) * e.r * 0.8), V(sx, e.cy + Math.cos(a) * e.r * 0.98, Math.sin(a) * e.r * 0.98 / 1.05)]));
+  }
+  for (let i = 0, m = budget(0.04); i < m; i++) put(ligs[i % ligs.length].getPoint(rnd()), 'ligament');
+  // العضلة الصدرية: لوح بألياف مائلة
+  for (let i = 0, m = budget(0.09); i < m; i++) {
+    const fy = (rnd() - 0.5) * 3.4, fz = (rnd() - 0.5) * 3.0;
+    const fiber = Math.round((fy + fz * 0.6) * 14) / 14; // خطوط الألياف
+    put(V(B.x0 - 0.12 - rnd() * 0.16, fiber - fz * 0.6 + (rnd() - 0.5) * 0.02, fz), 'muscle');
+  }
+  // الأضلاع: أقواس خلف العضلة
+  const ribs = [];
+  for (let r = 0; r < 5; r++) {
+    const y = 1.3 - r * 0.62;
+    ribs.push(new THREE.CatmullRomCurve3([V(B.x0 - 0.75, y + 0.15, -1.7), V(B.x0 - 0.42, y, -0.7), V(B.x0 - 0.36, y - 0.05, 0.3), V(B.x0 - 0.5, y - 0.12, 1.4)]));
+  }
+  for (let i = 0, m = budget(0.08); i < m; i++) {
+    const c = ribs[i % ribs.length], p = c.getPoint(rnd());
+    const a = rnd() * Math.PI * 2;
+    put(p.add(V(Math.cos(a) * 0.06, Math.sin(a) * 0.06, 0)), 'rib');
+  }
+  // العقد اللمفاوية: سلسلة نحو الإبط (فوق وللخارج)
+  const nodes = [V(-0.3, 1.05, -0.9), V(-0.55, 1.35, -1.25), V(-0.8, 1.6, -1.55), V(-1.0, 1.85, -1.8), V(0.1, 0.85, -0.7)];
+  const lymphN = budget(0.05);
+  for (let i = 0; i < lymphN; i++) {
+    if (i % 3 === 0) {
+      const a = nodes[i % 4], b = nodes[(i % 4) + 1];
+      put(a.clone().lerp(b, rnd()), 'lymph', 0.5);
+    } else {
+      const c = nodes[i % nodes.length], a = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1), r = 0.07;
+      put(c.clone().add(V(r * Math.sin(ph) * Math.cos(a), r * Math.sin(ph) * Math.sin(a) * 0.7, r * Math.cos(ph))), 'lymph');
+    }
+  }
+  // الورم: كتلة شائكة بالربع العلوي الخارجي (تظهر بس إذا النتيجة مشبوهة)
+  const lc = V(0.05, 0.55, -0.45);
+  const spikes = Array.from({ length: 14 }, () => V(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).normalize());
+  for (let i = 0, m = budget(0.03); i < m; i++) {
+    if (i % 3 === 0) {
+      const d = spikes[i % spikes.length];
+      put(lc.clone().addScaledVector(d, 0.14 + rnd() * 0.3), 'lesion', -1, 1);
+    } else {
+      const a = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1), r = Math.cbrt(rnd()) * 0.16;
+      put(lc.clone().add(V(r * Math.sin(ph) * Math.cos(a), r * Math.sin(ph) * Math.sin(a), r * Math.cos(ph))), 'lesion', -1, 1);
+    }
+  }
+  // الباقي: نقاط دهون إضافية
+  while (k < n) {
+    const p = V(B.x0 + rnd() * (B.x1 - B.x0), (rnd() - 0.5) * 2.9, (rnd() - 0.5) * 2.9);
+    if (insideBreast(p)) put(p, 'fat');
+  }
+  // نوسّط الشكل حول الصفر
+  for (let i = 0; i < n; i++) pos[i * 3] -= 0.1;
+  return { pos, tint, flow, flag };
+}
+
+const BUILDERS = { orb, mammo, dbt, cem, ultrasound, mri, ai, helix, shield, breast };
 const cache = new Map();
 
-export function shapePositions(name, n) {
+function build(name, n) {
   const key = name + ':' + n;
-  if (!cache.has(key)) cache.set(key, (BUILDERS[name] || orb)(n));
+  if (!cache.has(key)) {
+    const r = (BUILDERS[name] || orb)(n);
+    cache.set(key, r instanceof Float32Array ? { pos: r } : r);
+  }
   return cache.get(key);
+}
+export const shapePositions = (name, n) => build(name, n).pos;
+// ألوان/تدفق/علامات إضافية (للأشكال التشريحية بس)، وإلا null
+export function shapeExtras(name, n) {
+  const r = build(name, n);
+  return r.tint ? r : null;
 }
 
 // كم "حيوية" (تموج عضوي) لكل شكل: الكرة حية، الأجهزة ثابتة وحادة
 // شدة الإضاءة لكل شكل: الأشكال الصغيرة المزدحمة تحتاج أقل حتى ما تحترق للأبيض
-export const GAIN = { orb: 1, mammo: 0.42, dbt: 0.45, cem: 0.6, ultrasound: 0.5, mri: 0.4, ai: 0.62, helix: 0.5, shield: 0.5 };
-export const ORGANIC = { orb: 1, mammo: 0.08, dbt: 0.1, cem: 0.3, ultrasound: 0.14, mri: 0.08, ai: 0.12, helix: 0.18, shield: 0.1 };
+export const GAIN = { breast: 0.24, orb: 1, mammo: 0.42, dbt: 0.45, cem: 0.6, ultrasound: 0.5, mri: 0.4, ai: 0.62, helix: 0.5, shield: 0.5 };
+export const ORGANIC = { breast: 0.1, orb: 1, mammo: 0.08, dbt: 0.1, cem: 0.3, ultrasound: 0.14, mri: 0.08, ai: 0.12, helix: 0.18, shield: 0.1 };

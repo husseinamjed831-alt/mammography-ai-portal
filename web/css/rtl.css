@@ -1,0 +1,85 @@
+/* ===== العربي + خريطة الانتباه ===== */
+
+/* خطوط عربية: Readex Pro للعناوين، IBM Plex Sans Arabic للنص */
+html[lang="ar"] {
+  --font-display: 'Readex Pro', 'IBM Plex Sans Arabic', 'Syne', sans-serif;
+  --font-body: 'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif;
+}
+/* التباعد بين الحروف يقطع الحروف العربية المتصلة */
+html[lang="ar"] body *:not(.hud):not([dir="ltr"]) { letter-spacing: 0 !important; }
+html[lang="ar"] .eyebrow,
+html[lang="ar"] .field label,
+html[lang="ar"] .tile .k,
+html[lang="ar"] .dev-card .k,
+html[lang="ar"] .feat-label,
+html[lang="ar"] .verdict-tag,
+html[lang="ar"] .dev-btn small,
+html[lang="ar"] .pill,
+html[lang="ar"] .chip { font-family: var(--font-body); text-transform: none; font-weight: 600; }
+html[lang="ar"] .eyebrow { font-size: 14px; }
+html[lang="ar"] .hero h1 { line-height: 1.12; font-size: clamp(48px, 9vw, 132px); }
+html[lang="ar"] .display { line-height: 1.12; }
+html[lang="ar"] .verdict { line-height: 1.15; }
+html[lang="ar"] .prof-name { line-height: 1.15; }
+html[lang="ar"] .hero p, html[lang="ar"] .lede, html[lang="ar"] .tip p, html[lang="ar"] .dev-card p { line-height: 1.85; }
+html[lang="ar"] .scan-log { font-family: var(--font-body); font-size: 13px; }
+
+/* الأسهم تنقلب مع الاتجاه */
+[dir="rtl"] .btn .arrow { display: inline-block; transform: scaleX(-1); }
+[dir="rtl"] .btn:hover .arrow { transform: scaleX(-1) translateX(4px); }
+
+/* خصائص منطقية بدل يسار/يمين */
+[dir="rtl"] .tip::before { inset: 0 0 0 auto; }
+[dir="rtl"] .dev-btn, [dir="rtl"] .pat-card { text-align: right; }
+[dir="rtl"] .hud { right: auto; left: clamp(16px, 4vw, 48px); }
+[dir="rtl"] .eyebrow::before { order: 0; }
+
+/* تبويب الإرشادات: نص كامل على الشاشات العريضة، مختصر على الموبايل */
+.tabs .short { display: none; }
+@media (max-width: 820px) {
+  .tabs .long { display: none; }
+  .tabs .short { display: inline; }
+}
+.chip.lang {
+  min-width: 38px; text-align: center; font-family: 'IBM Plex Sans Arabic', var(--font-body);
+  font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: 0; text-transform: none;
+}
+html[lang="ar"] .chip.lang { font-family: var(--font-mono); font-size: 11px; }
+
+/* ===== خريطة الانتباه ===== */
+.heat-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0;
+  mix-blend-mode: screen;
+}
+.attn {
+  display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center;
+  margin: 0 0 24px; padding: 12px; border-radius: 18px; border: 1px solid var(--line);
+  background: rgba(10, 14, 30, .5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  max-width: 560px;
+}
+.attn-img {
+  position: relative; display: block; width: 110px; aspect-ratio: 3 / 4; max-width: 100%;
+  border-radius: 12px; overflow: hidden; border: 0; padding: 0; cursor: zoom-in; background: #000;
+}
+.attn-img img, .attn-img canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.attn-img img { filter: grayscale(1) contrast(1.1); }
+.attn-img canvas { mix-blend-mode: screen; }
+.attn-img:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.attn figcaption { display: grid; gap: 6px; }
+.attn figcaption b { font-family: var(--font-display); font-size: 17px; }
+.attn figcaption span { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.scan-item .thumb { position: relative; }
+.scan-item .thumb img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.scan-item .thumb .heat { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; mix-blend-mode: screen; opacity: .9; }
+
+#viewerHeatLayer { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; mix-blend-mode: screen; }
+.chip.on { color: var(--ink); border-color: var(--cyan); background: rgba(63, 216, 255, .14); }
+
+.pdf-note { color: #5b6478; font-size: 12px; align-self: center; }
+
+/* الحروف العربية المفرغة (outline) تطلع مشوشة بسبب النقاط، فنستخدم تدرج لوني بدلها */
+html[lang="ar"] .hero h1 .outline {
+  -webkit-text-stroke: 0; color: transparent;
+  background: linear-gradient(100deg, var(--cyan), var(--pink)); -webkit-background-clip: text; background-clip: text;
+}
