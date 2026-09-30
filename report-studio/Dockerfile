@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p /usr/share/fonts/truetype/studio && cp fonts/*.ttf /usr/share/fonts/truetype/studio/ && cp fonts/local.conf /etc/fonts/local.conf && fc-cache -f
 
-ENV STUDIO_OUT=/data/output
-EXPOSE 8000
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV STUDIO_OUT=/data/output \
+    STUDIO_DATA=/data
+# Runs the Telegram bot. For the HTTP API (n8n) use:
+#   uvicorn server:app --host 0.0.0.0 --port 8000
+CMD ["python", "bot.py"]
