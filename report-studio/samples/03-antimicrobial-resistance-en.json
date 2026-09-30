@@ -1,0 +1,95 @@
+{
+  "lang": "en",
+  "theme": "science",
+  "options": {"ministry_header": true},
+  "cover": {
+    "university": "University of Basrah",
+    "college": "College of Pharmacy",
+    "department": "Department of Clinical Pharmacy",
+    "subject": "Pharmacology & Therapeutics",
+    "stage": "4th Year",
+    "student": "Ali Kareem Al-Maliki",
+    "supervisor": "Dr. Huda Abdulwahid",
+    "academic_year": "2025 – 2026",
+    "title": "Antimicrobial Resistance: The Slow Pandemic",
+    "subtitle": "Drivers, global burden, and what pharmacists can change"
+  },
+  "abstract": "Antibiotics turned once-fatal infections into routine prescriptions, yet the bacteria they target keep adapting. This report reviews how antimicrobial resistance (AMR) emerges and spreads, what the best current estimates say about its global burden, and why low- and middle-income countries, including Iraq, face a disproportionate share of that burden. Drawing on the Global Research on Antimicrobial Resistance (GRAM) studies published in The Lancet, it shows that bacterial AMR was directly responsible for about 1.27 million deaths in 2019 and is forecast to cause close to 40 million deaths between 2025 and 2050 if trends continue. The report then turns to what can realistically change: stewardship in hospitals and community pharmacies, infection prevention, surveillance, and the stalled pipeline of new antibiotics. It argues that pharmacists, who often hand out antibiotics without a prescription in practice, sit at one of the most decisive points in the chain.",
+  "keywords": ["antimicrobial resistance", "antibiotic stewardship", "global burden", "pharmacy practice", "Iraq"],
+  "sections": [
+    {
+      "heading": "Introduction",
+      "blocks": [
+        {"type": "paragraph", "text": "When Alexander Fleming accepted the Nobel Prize in 1945, he used part of his lecture to warn that underdosing penicillin could teach microbes to resist it [4]. Eighty years later his warning reads less like a prediction and more like a description. Infections that responded to first-line drugs a generation ago, from urinary tract infections to neonatal sepsis, increasingly need second- and third-line agents, and sometimes nothing works at all."},
+        {"type": "paragraph", "text": "Unlike an outbreak, AMR rarely makes headlines. Deaths are recorded as pneumonia, sepsis or post-operative complications, and the resistant organism behind them is often never identified. That is why it is sometimes called a slow pandemic. This report asks three questions: how resistance develops and spreads, how large the problem is, and which interventions have evidence behind them."}
+      ],
+      "subsections": []
+    },
+    {
+      "heading": "How Resistance Emerges and Spreads",
+      "blocks": [
+        {"type": "paragraph", "text": "Resistance is evolution under selection pressure. In any large bacterial population a few cells carry mutations or acquired genes that let them survive a drug. Each course of antibiotics, and especially an unnecessary or incomplete one, removes their susceptible competitors and leaves the resistant cells to multiply [5]."},
+        {"type": "bullets", "items": [
+          "**Enzymatic inactivation**: beta-lactamases, including extended-spectrum beta-lactamases and carbapenemases, break the drug down before it acts.",
+          "**Target modification**: altered penicillin-binding proteins in MRSA no longer bind beta-lactams effectively.",
+          "**Efflux pumps**: membrane proteins expel the drug from the cell.",
+          "**Reduced permeability**: changes in porins keep the drug out, particularly in Gram-negative bacteria."
+        ]},
+        {"type": "paragraph", "text": "What turns a local problem into a global one is **horizontal gene transfer**. Resistance genes carried on plasmids can move between different bacterial species, so a gene selected in one patient, farm or sewage system can surface elsewhere. Hospitals concentrate vulnerable patients and heavy antibiotic use, and international travel carries resistant strains across borders within days."},
+        {"type": "callout", "title": "The One Health view", "text": "Human medicine is only part of the picture. Antibiotics used to promote growth in livestock, residues in wastewater from pharmaceutical plants, and poor sanitation all add selection pressure. This is why WHO, FAO and the World Organisation for Animal Health treat AMR as a single problem across people, animals and the environment [2]."}
+      ],
+      "subsections": []
+    },
+    {
+      "heading": "The Global Burden",
+      "blocks": [
+        {"type": "paragraph", "text": "For years the most-quoted figure was the projection from the 2016 O'Neill review: 10 million deaths a year by 2050 [3]. It was a scenario rather than a measurement, and it drew criticism for that. The GRAM study published in 2022 changed the evidence base by estimating deaths directly across 204 countries. It found that bacterial AMR was directly responsible for about 1.27 million deaths in 2019 and associated with about 4.95 million [1]. A follow-up analysis in 2024 forecast roughly 39 million deaths attributable to AMR between 2025 and 2050 [6]."},
+        {"type": "table", "caption": "Key estimates of the AMR burden", "headers": ["Source", "Year", "Estimate"], "rows": [
+          ["O'Neill Review [3]", "2016", "Up to 10 million deaths/year by 2050 (projection)"],
+          ["GRAM, Murray et al. [1]", "2022", "1.27 million deaths directly attributable (2019)"],
+          ["GRAM, Murray et al. [1]", "2022", "4.95 million deaths associated with AMR (2019)"],
+          ["GRAM, Naghavi et al. [6]", "2024", "About 39 million attributable deaths, 2025–2050 (forecast)"]
+        ]},
+        {"type": "paragraph", "text": "The burden is uneven. The highest death rates were estimated in western sub-Saharan Africa and South Asia, where weak laboratory capacity, crowded health facilities and unregulated antibiotic sales combine [1]. Six pathogens, led by Escherichia coli and Staphylococcus aureus, accounted for most of the deaths."}
+      ],
+      "subsections": []
+    },
+    {
+      "heading": "Critical Discussion: Why Progress Is Slow",
+      "blocks": [
+        {"type": "paragraph", "text": "The science of AMR is well understood; the difficulty is economic and behavioural. A new antibiotic that works against resistant bacteria should, by good stewardship, be held in reserve and used as little as possible. That is sound medicine and poor business, which is why several major pharmaceutical companies have left antibiotic research and why few genuinely new classes have reached the market in recent decades [5]."},
+        {"type": "paragraph", "text": "Behaviour is the second barrier. In many countries, Iraq included, antibiotics are widely available from community pharmacies without a prescription, and patients often expect them for viral infections such as colds and sore throats. Surveillance is also patchy: without reliable laboratory data, clinicians prescribe empirically and resistance goes unmeasured. The picture is not hopeless, though. National action plans modelled on the WHO Global Action Plan now exist in most countries [2]; the gap lies in funding and enforcing them."}
+      ],
+      "subsections": []
+    },
+    {
+      "heading": "What Pharmacists Can Change",
+      "blocks": [
+        {"type": "paragraph", "text": "Pharmacists are the last professional check before an antibiotic reaches a patient, and in community settings they are often the first and only one. That position gives them real leverage:"},
+        {"type": "numbered", "items": [
+          "Refuse to dispense antibiotics without a prescription, and explain why in terms the patient can accept.",
+          "Take part in hospital stewardship teams: review indications, doses and durations, and support switching from intravenous to oral therapy.",
+          "Counsel patients on completing the prescribed course correctly and never sharing or saving leftover antibiotics.",
+          "Report suspected treatment failures and support local antibiogram development with microbiology laboratories."
+        ]},
+        {"type": "quote", "text": "The microbes are educated to resist penicillin and a host of penicillin-fast organisms is bred out.", "source": "Alexander Fleming, Nobel Lecture, 1945"}
+      ],
+      "subsections": []
+    },
+    {
+      "heading": "Conclusion",
+      "blocks": [
+        {"type": "paragraph", "text": "AMR is already killing more people each year than many diseases that receive far more attention, and the best available forecasts point upward. Its causes are known, and so are most of the remedies: fewer unnecessary prescriptions, better infection control, reliable surveillance and a sustainable model for developing new drugs. For a pharmacy student, the lesson is practical rather than abstract. Every dispensing decision is a small contribution to how long our current antibiotics will keep working."}
+      ],
+      "subsections": []
+    }
+  ],
+  "references": [
+    "Antimicrobial Resistance Collaborators. (2022). Global burden of bacterial antimicrobial resistance in 2019: A systematic analysis. The Lancet, 399(10325), 629–655.",
+    "World Health Organization. (2015). Global action plan on antimicrobial resistance. Geneva: WHO.",
+    "O'Neill, J. (2016). Tackling drug-resistant infections globally: Final report and recommendations. London: Review on Antimicrobial Resistance.",
+    "Fleming, A. (1945). Penicillin [Nobel Lecture, 11 December 1945]. Stockholm: The Nobel Foundation.",
+    "Ventola, C. L. (2015). The antibiotic resistance crisis: Part 1: Causes and threats. Pharmacy and Therapeutics, 40(4), 277–283.",
+    "GBD 2021 Antimicrobial Resistance Collaborators. (2024). Global burden of bacterial antimicrobial resistance 1990–2021: A systematic analysis with forecasts to 2050. The Lancet, 404(10459), 1199–1226."
+  ]
+}

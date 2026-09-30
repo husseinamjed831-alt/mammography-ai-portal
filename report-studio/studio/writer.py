@@ -1,0 +1,132 @@
+"""Generate report content with Claude as schema-valid JSON."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import anthropic
+
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "writer_system.md"
+MODEL = os.environ.get("STUDIO_MODEL", "claude-opus-5-5")
+EFFORT = os.environ.get("STUDIO_EFFORT", "high")
+
+# Words of body text per content page, measured on the rendered samples
+# (mixed prose, tables and callouts;
+# A4, 2.4 cm margins, Amiri 14 pt / 1.35 for Arabic, 12 pt / 1.4 English).
+WORDS_PER_PAGE = {"ar": 210, "en": 250}
+# Cover + contents + references occupy about this many pages.
+FIXED_PAGES = 3
+
+_text = {"type": "string"}
+_list = {"type": "array", "items": _text}
+BLOCK = {
+    "anyOf": [
+        {"type": "object", "additionalProperties": False, "required": ["type", "text"],
+         "properties": {"type": {"const": "paragraph"}, "text": _text}},
+        {"type": "object", "additionalProperties": False, "required": ["type", "items"],
+         "properties": {"type": {"enum": ["bullets", "numbered"]}, "items": _list}},
+        {"type": "object", "additionalProperties": False,
+         "required": ["type", "caption", "headers", "rows"],
+         "properties": {"type": {"const": "table"}, "caption": _text, "headers": _list,
+                        "rows": {"type": "array", "items": _list}}},
+        {"type": "object", "additionalProperties": False, "required": ["type", "title", "text"],
+         "properties": {"type": {"const": "callout"}, "title": _text, "text": _text}},
+        {"type": "object", "additionalProperties": False, "required": ["type", "text", "source"],
+         "properties": {"type": {"const": "quote"}, "text": _text, "source": _text}},
+    ]
+}
+SUBSECTION = {
+    "type": "object", "additionalProperties": False, "required": ["heading", "blocks"],
+    "properties": {"heading": _text, "blocks": {"type": "array", "items": BLOCK}},
+}
+CONTENT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["abstract", "keywords", "sections", "references"],
+    "properties": {
+        "abstract": _text,
+        "keywords": _list,
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["heading", "blocks", "subsections"],
+                "properties": {
+                    "heading": _text,
+                    "blocks": {"type": "array", "items": BLOCK},
+                    "subsections": {"type": "array", "items": SUBSECTION},
+                },
+            },
+        },
+        "references": _list,
+    },
+}
+
+
+def word_budget(lang: str, pages: int) -> int:
+    content_pages = max(1, int(pages) - FIXED_PAGES)
+    return content_pages * WORDS_PER_PAGE["en" if lang == "en" else "ar"]
+
+
+def order_message(order: dict) -> str:
+    lang = "en" if order.get("lang") == "en" else "ar"
+    pages = int(order.get("pages") or 10)
+    lines = [
+        f"Title: {order.get('title', '')}",
+        f"Subject / course: {order.get('subject', '')}",
+        f"College / department: {order.get('college', '')} {order.get('department', '')}".strip(),
+        f"Stage: {order.get('stage', '')}",
+        f"Report language: {'English' if lang == 'en' else 'Arabic'}",
+        f"Academic level: {order.get('level', 'undergraduate')}",
+        f"Citation style: {order.get('citation', 'APA 7')}",
+        f"Requested length: {pages} pages in total "
+        f"→ word budget for the body: about {word_budget(lang, pages)} words",
+    ]
+    if order.get("notes"):
+        lines.append(f"Notes from the student/professor: {order['notes']}")
+    return "Write the report for this order.\n\n" + "\n".join(lines)
+
+
+def generate_content(order: dict, client: anthropic.Anthropic | None = None) -> dict:
+    client = client or anthropic.Anthropic()
+    system = PROMPT_PATH.read_text(encoding="utf-8")
+    with client.beta.messages.stream(
+        model=MODEL,
+        max_tokens=64000,
+        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": order_message(order)}],
+        thinking={"type": "adaptive"},
+        output_config={"effort": EFFORT,
+                       "format": {"type": "json_schema", "schema": CONTENT_SCHEMA}},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+    ) as stream:
+        message = stream.get_final_message()
+
+    if message.stop_reason == "refusal":
+        raise RuntimeError("The model declined this order; review the title/notes.")
+    if message.stop_reason == "max_tokens":
+        raise RuntimeError("Output was cut off; lower the page count or raise max_tokens.")
+    text = next(b.text for b in message.content if b.type == "text")
+    return json.loads(text)
+
+
+def report_from_order(order: dict, content: dict) -> dict:
+    """Merge the form fields (cover, design) with generated content."""
+    lang = "en" if order.get("lang") == "en" else "ar"
+    return {
+        "lang": lang,
+        "theme": order.get("theme") or "classic",
+        "options": {
+            "ministry_header": str(order.get("ministry_header", "true")).lower() not in ("false", "0", "no", "لا"),
+        },
+        "cover": {
+            k: order.get(k)
+            for k in ("title", "subtitle", "university", "college", "department", "subject",
+                      "stage", "student", "supervisor", "academic_year", "logo_path")
+            if order.get(k)
+        },
+        **content,
+    }

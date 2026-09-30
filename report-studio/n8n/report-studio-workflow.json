@@ -1,0 +1,249 @@
+{
+  "name": "Report Studio – طلب تقرير",
+  "nodes": [
+    {
+      "id": "e32ddd4d-fc10-4f1f-8298-04148b50fa33",
+      "name": "استمارة الطلب",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "9de63168-bbc9-434e-8b7c-417159820a13",
+      "parameters": {
+        "formTitle": "اطلب تقريرك الجامعي",
+        "formDescription": "املأ معلومات الواجهة واختر التصميم. يصلك التقرير بصيغ Word وPDF وExcel خلال دقائق.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "عنوان التقرير",
+              "requiredField": true,
+              "placeholder": "مثال: الطاقة الشمسية في العراق"
+            },
+            {
+              "fieldLabel": "اسم الطالب",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "الجامعة",
+              "requiredField": true,
+              "placeholder": "جامعة بغداد"
+            },
+            {
+              "fieldLabel": "الكلية",
+              "requiredField": true,
+              "placeholder": "كلية الهندسة"
+            },
+            {
+              "fieldLabel": "القسم",
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "المادة",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "المرحلة",
+              "requiredField": true,
+              "placeholder": "المرحلة الثالثة"
+            },
+            {
+              "fieldLabel": "اسم الأستاذ المشرف",
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "العام الدراسي",
+              "requiredField": false,
+              "placeholder": "2025 – 2026"
+            },
+            {
+              "fieldLabel": "لغة التقرير",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "عربي"
+                  },
+                  {
+                    "option": "English"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "عدد الصفحات",
+              "fieldType": "number",
+              "requiredField": true,
+              "placeholder": "10"
+            },
+            {
+              "fieldLabel": "التصميم",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "كلاسيكي عراقي (إطار)"
+                  },
+                  {
+                    "option": "طبي"
+                  },
+                  {
+                    "option": "هندسي"
+                  },
+                  {
+                    "option": "علوم"
+                  },
+                  {
+                    "option": "قانوني"
+                  },
+                  {
+                    "option": "أدبي وإنساني"
+                  },
+                  {
+                    "option": "إداري واقتصادي"
+                  },
+                  {
+                    "option": "بسيط أنيق"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "المستوى",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "بكالوريوس"
+                  },
+                  {
+                    "option": "دراسات عليا"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "نمط التوثيق",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "APA 7"
+                  },
+                  {
+                    "option": "IEEE"
+                  },
+                  {
+                    "option": "Harvard"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "ملاحظات الأستاذ أو نقاط يجب التركيز عليها",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {
+          "appendAttribution": false,
+          "buttonLabel": "إرسال الطلب"
+        }
+      }
+    },
+    {
+      "id": "12c42b01-16b7-4b75-966f-f53ed03333b0",
+      "name": "تجهيز الطلب",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const f = $json;\nconst themes = {\"كلاسيكي عراقي (إطار)\": \"classic\", \"طبي\": \"medical\", \"هندسي\": \"engineering\", \"علوم\": \"science\", \"قانوني\": \"law\", \"أدبي وإنساني\": \"humanities\", \"إداري واقتصادي\": \"business\", \"بسيط أنيق\": \"minimal\"};\nreturn [{ json: {\n  title: f['عنوان التقرير'],\n  student: f['اسم الطالب'],\n  university: f['الجامعة'],\n  college: f['الكلية'],\n  department: f['القسم'] || '',\n  subject: f['المادة'],\n  stage: f['المرحلة'],\n  supervisor: f['اسم الأستاذ المشرف'] || '',\n  academic_year: f['العام الدراسي'] || '',\n  lang: f['لغة التقرير'] === 'English' ? 'en' : 'ar',\n  pages: Math.min(Math.max(Number(f['عدد الصفحات']) || 10, 5), 40),\n  theme: themes[f['التصميم']] || 'classic',\n  level: f['المستوى'] === 'دراسات عليا' ? 'postgraduate' : 'undergraduate',\n  citation: f['نمط التوثيق'] || 'APA 7',\n  notes: f['ملاحظات الأستاذ أو نقاط يجب التركيز عليها'] || '',\n  kind: 'report'\n}}];"
+      }
+    },
+    {
+      "id": "1188d466-3d54-44f7-9605-06cc11e23722",
+      "name": "توليد التقرير",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-STUDIO-SERVER/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 900000
+        }
+      }
+    },
+    {
+      "id": "97372030-0d38-403f-9e7b-9f56d7fbf3a9",
+      "name": "صفحة التحميل",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "تقريرك جاهز ✅",
+        "completionMessage": "=عدد الصفحات: {{ $json.pages }}\nالسعر: {{ $json.price.iqd }} دينار\n\nWord: {{ $json.files.docx }}\nPDF: {{ $json.files.pdf }}\nExcel: {{ $json.files.xlsx }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "استمارة الطلب": {
+      "main": [
+        [
+          {
+            "node": "تجهيز الطلب",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تجهيز الطلب": {
+      "main": [
+        [
+          {
+            "node": "توليد التقرير",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "توليد التقرير": {
+      "main": [
+        [
+          {
+            "node": "صفحة التحميل",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
