@@ -16,12 +16,11 @@ import re
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_BREAK
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Emu, Pt
+from docx.shared import Cm, Pt
 
 from .fonts import embed_fonts
 from .themes import Theme, get_theme

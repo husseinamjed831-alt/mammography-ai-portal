@@ -11,7 +11,6 @@ address n8n/customers reach this server on, and ANTHROPIC_API_KEY for /orders.
 
 from __future__ import annotations
 
-import json
 import os
 import uuid
 from urllib.parse import quote as urlquote
@@ -21,9 +20,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
 
+from studio.pipeline import produce
 from studio.pricing import quote
 from studio.render import render, safe_name
-from studio.writer import generate_content, report_from_order
 
 OUT_ROOT = Path(os.environ.get("STUDIO_OUT", "output")).resolve()
 BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
@@ -57,10 +56,7 @@ async def create_order(order: dict):
     if not order.get("title"):
         raise HTTPException(422, "title is required")
     job, d = _job_dir()
-    content = await run_in_threadpool(generate_content, order)
-    report = report_from_order(order, content)
-    (d / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
-    result = await run_in_threadpool(render, report, d, basename=safe_name(order["title"]))
+    result = await run_in_threadpool(produce, order, d)
     return {**_publish(job, result), "price": quote(order)}
 
 

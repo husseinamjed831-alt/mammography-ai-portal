@@ -41,7 +41,43 @@ docker run -p 8000:8000 -e ANTHROPIC_API_KEY=... -e STUDIO_API_KEY=... \
 
 لإعادة بناء العينات: `python scripts/build_samples.py`
 
-## ربطه بـ n8n
+## بوت تيليگرام
+
+البوت (`bot.py`) يستلم الطلب من الطالب خطوة بخطوة، ويستلم وصل الدفع، ويرسله إلك حتى توافق عليه، وبعدها يكتب التقرير ويدز الملفات للطالب.
+
+**القائمة:** 📝 اطلب تقرير · 📂 نماذج من شغلنا · 💰 الأسعار · ☎️ تواصل معنا
+
+**مسار الطلب:**
+1. 13 سؤال: العنوان، اللغة، عدد الصفحات، معلومات الواجهة، التصميم، الملاحظات. الأسئلة الاختيارية بيها زر تخطي.
+2. ملخص الطلب والسعر، ويه أزرار تأكيد أو إعادة أو إلغاء.
+3. تعليمات الدفع، والطالب يدز صورة الوصل.
+4. توصلك الصورة والملخص ويه زرين: ✅ الدفع وصل / ❌ رفض.
+5. عند الموافقة يُكتب التقرير ويوصل للطالب بصيغ Word وPDF وExcel.
+
+**أوامر إلك (الأدمن):** `/orders` آخر الطلبات وحالتها. وتگدر تطلب بنفسك بدون دفع، ينفعك تسوي نماذج جديدة.
+
+### تشغيله
+
+1. من [@BotFather](https://t.me/BotFather) اكتب `/newbot` وخذ الـ token.
+2. شغّل البوت واكتب له `/id` حتى تعرف رقمك.
+3. ضبط المتغيرات وشغّله:
+
+```bash
+export TELEGRAM_BOT_TOKEN=...
+export ADMIN_CHAT_ID=رقمك
+export ANTHROPIC_API_KEY=...
+export PAYMENT_INFO="حوّل المبلغ على زين كاش للرقم 07XXXXXXXXX ثم دز صورة الوصل هنا 👇"
+export CONTACT_INFO="للتواصل: @اسمك"
+python bot.py
+```
+
+وبـ Docker: `docker run -e TELEGRAM_BOT_TOKEN=... -e ADMIN_CHAT_ID=... -e ANTHROPIC_API_KEY=... -v $PWD/data:/data -e STUDIO_DATA=/data report-studio python bot.py`
+
+الطلبات تنحفظ في `data/orders.db` والملفات في `data/jobs/`، فما تضيع إذا البوت انطفى وانعاد.
+
+اختبار كامل للمحادثة بدون إنترنت: `python tests/test_bot_flow.py`
+
+## ربطه بـ n8n (بديل عن البوت)
 
 1. استورد `n8n/report-studio-workflow.json` (Workflows ← Import from file).
 2. في عقدة **توليد التقرير** غيّر الرابط `https://YOUR-STUDIO-SERVER/orders` إلى عنوان خادمك، وأنشئ Credential من نوع *Header Auth* باسم `X-API-Key` وقيمة `STUDIO_API_KEY`.
