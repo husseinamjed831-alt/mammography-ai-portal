@@ -45,6 +45,20 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("report-bot")
 
 ROOT = Path(__file__).resolve().parent
+
+
+def load_settings(path: Path) -> None:
+    """Read KEY=value lines from settings.env (easier than env vars on Windows)."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"'))
+
+
+load_settings(ROOT / "settings.env")
 DATA = Path(os.environ.get("STUDIO_DATA", ROOT / "data"))
 ADMIN_ID = int(os.environ.get("ADMIN_CHAT_ID", "0") or 0)
 PAYMENT_INFO = os.environ.get(

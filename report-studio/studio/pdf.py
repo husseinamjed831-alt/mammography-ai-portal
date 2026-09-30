@@ -10,11 +10,20 @@ from pathlib import Path
 import pymupdf as fitz
 
 
+WINDOWS_SOFFICE = [
+    Path(r"C:\Program Files\LibreOffice\program\soffice.exe"),
+    Path(r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"),
+]
+
+
 def soffice_bin() -> str:
     for name in ("soffice", "libreoffice"):
         path = shutil.which(name)
         if path:
             return path
+    for path in WINDOWS_SOFFICE:
+        if path.exists():
+            return str(path)
     raise RuntimeError("LibreOffice (soffice) is not installed")
 
 
@@ -24,7 +33,7 @@ def docx_to_pdf(docx: Path, out_dir: Path, timeout: int = 180) -> Path:
     with tempfile.TemporaryDirectory(prefix="lo-profile-") as profile:
         subprocess.run(
             [
-                soffice_bin(), f"-env:UserInstallation=file://{profile}",
+                soffice_bin(), f"-env:UserInstallation={Path(profile).as_uri()}",
                 "--headless", "--norestore", "--convert-to", "pdf",
                 "--outdir", str(out_dir), str(docx),
             ],
