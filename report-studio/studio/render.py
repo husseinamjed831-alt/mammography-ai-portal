@@ -50,3 +50,18 @@ def render(report: dict, out_dir: str | Path, *, basename: str | None = None,
     return result
 
 
+
+
+def render_deck(deck: dict, out_dir: str | Path, *, basename: str | None = None,
+                make_pdf: bool = True) -> dict:
+    from .pptx_builder import build_pptx
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    name = basename or safe_name((deck.get("cover") or {}).get("title", ""), "presentation")
+    pptx_path = build_pptx(deck, out_dir / f"{name}.pptx")
+    result: dict = {"pptx": str(pptx_path), "slides": len(deck.get("slides") or []) + 3}
+    if make_pdf:
+        pdf_path = docx_to_pdf(pptx_path, out_dir)
+        result.update(pdf=str(pdf_path), slides=page_count(pdf_path))
+    return result

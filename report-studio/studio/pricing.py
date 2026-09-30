@@ -22,7 +22,9 @@ def quote(order: dict) -> dict:
     kind = order.get("kind") or "report"
     if kind == "presentation":
         p = PRICES["presentation"]
-        if _truthy(order.get("three_d")):
+        if order.get("tier") in p:
+            tier = order["tier"]
+        elif _truthy(order.get("three_d")):
             tier = "three_d"
         elif _truthy(order.get("animated")):
             tier = "animated"

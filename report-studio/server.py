@@ -38,10 +38,10 @@ def auth(x_api_key: str | None = Header(default=None)):
 
 def _publish(job: str, result: dict) -> dict:
     files = {}
-    for kind in ("docx", "pdf", "xlsx"):
+    for kind in ("docx", "pptx", "pdf", "xlsx"):
         if result.get(kind):
             files[kind] = f"{BASE_URL}/files/{job}/{urlquote(Path(result[kind]).name)}"
-    return {"job": job, "pages": result.get("pages"), "files": files}
+    return {"job": job, "pages": result.get("pages") or result.get("slides"), "files": files}
 
 
 def _job_dir() -> tuple[str, Path]:

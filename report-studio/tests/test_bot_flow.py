@@ -65,6 +65,8 @@ class FakeRequest(BaseRequest):
 sample = json.loads((ROOT / "samples" / "02-solar-iraq-ar.json").read_text(encoding="utf-8"))
 CONTENT = {k: sample[k] for k in ("abstract", "keywords", "sections", "references")}
 pipeline.generate_content = lambda order: CONTENT
+DECK = json.loads((ROOT / "samples" / "decks" / "01-ai-mammography-deck-ar.json").read_text(encoding="utf-8"))
+pipeline.generate_deck_content = lambda order: {"slides": DECK["slides"]}
 
 _uid = 0
 
@@ -117,7 +119,7 @@ async def main():
     await send(text_update(STUDENT, bot.BTN_PRICES))
     await send(text_update(STUDENT, bot.BTN_SAMPLES))
     await send(text_update(STUDENT, bot.BTN_ORDER))
-    answers = ["الطاقة الشمسية في العراق", "عربي", "abc", "٨", "علي كريم", "جامعة البصرة",
+    answers = [bot.KIND_REPORT, "الطاقة الشمسية في العراق", "عربي", "abc", "٨", "علي كريم", "جامعة البصرة",
                "كلية الهندسة", bot.BTN_SKIP, "الطاقة المتجددة", "المرحلة الثالثة", bot.BTN_SKIP,
                "2025 – 2026", "هندسي", bot.BTN_SKIP]
     for a in answers:
@@ -148,6 +150,30 @@ async def main():
 
     order = bot.to_order(bot.store.get(1)["data"])
     assert order["theme"] == "engineering" and order["pages"] == 8 and order["lang"] == "ar"
+
+    # A 3-D presentation order, placed by a second student.
+    S2 = 222
+    await send(text_update(S2, bot.BTN_ORDER))
+    for a in [bot.KIND_DECK, "الذكاء الاصطناعي في الماموغرام", "عربي", "4", "12",
+              "ثلاثي الأبعاد 3D 🧊", "زينب حيدر", "جامعة بغداد", "كلية الطب", bot.BTN_SKIP,
+              "الأشعة", "المرحلة الخامسة", bot.BTN_SKIP, bot.BTN_SKIP, "طبي", bot.BTN_SKIP]:
+        await send(text_update(S2, a))
+    assert any("رقم من 6 إلى 30" in t for t in texts_to(S2)), "slide count validation"
+    assert any("السعر: 20,000 دينار" in t for t in texts_to(S2)), texts_to(S2)[-1]
+    assert not any("صفحة تريد" in t for t in texts_to(S2)), "no page question for decks"
+    await send(callback_update(S2, "confirm"))
+    await send(photo_update(S2))
+    await send(callback_update(ADMIN, "ok:2"))
+    for _ in range(300):
+        if bot.store.get(2)["status"] in ("delivered", "failed"):
+            break
+        await asyncio.sleep(0.5)
+    assert bot.store.get(2)["status"] == "delivered", bot.store.get(2)["status"]
+    names = [p.get("document", {}) for e, p in req.calls if e == "sendDocument" and int(p["chat_id"]) == S2]
+    deck_order = bot.to_order(bot.store.get(2)["data"])
+    assert deck_order["kind"] == "presentation" and deck_order["tier"] == "three_d"
+    assert deck_order["slides"] == 12 and "pages" not in deck_order
+    assert len(names) == 2, "pptx + pdf delivered"
 
     await send(text_update(ADMIN, "/orders"))
     assert any("#1 • delivered" in t for t in texts_to(ADMIN)), texts_to(ADMIN)

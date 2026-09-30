@@ -130,3 +130,85 @@ def report_from_order(order: dict, content: dict) -> dict:
         },
         **content,
     }
+
+
+# ---------------------------------------------------------------- presentations
+
+DECK_PROMPT_PATH = PROMPT_PATH.parent / "deck_system.md"
+
+
+def _obj(props: dict) -> dict:
+    return {"type": "object", "additionalProperties": False,
+            "required": list(props), "properties": props}
+
+
+_side = _obj({"heading": _text, "bullets": _list})
+SLIDE = {"anyOf": [
+    _obj({"layout": {"const": "section"}, "title": _text, "subtitle": _text, "notes": _text}),
+    _obj({"layout": {"const": "bullets"}, "title": _text, "bullets": _list,
+          "highlight": _obj({"value": _text, "label": _text}), "notes": _text}),
+    _obj({"layout": {"const": "two_column"}, "title": _text, "left": _side, "right": _side,
+          "notes": _text}),
+    _obj({"layout": {"const": "stats"}, "title": _text,
+          "stats": {"type": "array", "items": _obj({"value": _text, "label": _text})},
+          "note": _text, "notes": _text}),
+    _obj({"layout": {"const": "table"}, "title": _text,
+          "table": _obj({"caption": _text, "headers": _list,
+                         "rows": {"type": "array", "items": _list}}), "notes": _text}),
+    _obj({"layout": {"const": "timeline"}, "title": _text,
+          "steps": {"type": "array", "items": _obj({"title": _text, "text": _text})},
+          "notes": _text}),
+    _obj({"layout": {"const": "quote"}, "quote": _obj({"text": _text, "source": _text}),
+          "notes": _text}),
+]}
+DECK_SCHEMA = _obj({"slides": {"type": "array", "items": SLIDE}})
+
+# Title, agenda and closing slides are added by the design engine.
+AUTO_SLIDES = 3
+
+
+def deck_message(order: dict) -> str:
+    lang = "en" if order.get("lang") == "en" else "ar"
+    total = int(order.get("slides") or 12)
+    lines = [
+        f"Title: {order.get('title', '')}",
+        f"Subject / course: {order.get('subject', '')}",
+        f"College / department: {order.get('college', '')} {order.get('department', '')}".strip(),
+        f"Stage: {order.get('stage', '')}",
+        f"Presentation language: {'English' if lang == 'en' else 'Arabic'}",
+        f"Academic level: {order.get('level', 'undergraduate')}",
+        f"Content slides to write: exactly {max(3, total - AUTO_SLIDES)} "
+        f"(the deck will have {total} slides in total)",
+    ]
+    if order.get("notes"):
+        lines.append(f"Notes from the student/professor: {order['notes']}")
+    return "Write the presentation for this order.\n\n" + "\n".join(lines)
+
+
+def generate_deck_content(order: dict, client: anthropic.Anthropic | None = None) -> dict:
+    client = client or anthropic.Anthropic()
+    with client.beta.messages.stream(
+        model=MODEL,
+        max_tokens=64000,
+        system=[{"type": "text", "text": DECK_PROMPT_PATH.read_text(encoding="utf-8"),
+                 "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": deck_message(order)}],
+        thinking={"type": "adaptive"},
+        output_config={"effort": EFFORT,
+                       "format": {"type": "json_schema", "schema": DECK_SCHEMA}},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+    ) as stream:
+        message = stream.get_final_message()
+    if message.stop_reason == "refusal":
+        raise RuntimeError("The model declined this order; review the title/notes.")
+    if message.stop_reason == "max_tokens":
+        raise RuntimeError("Output was cut off; lower the slide count or raise max_tokens.")
+    return json.loads(next(b.text for b in message.content if b.type == "text"))
+
+
+def deck_from_order(order: dict, content: dict) -> dict:
+    base = report_from_order(order, {})
+    base["tier"] = order.get("tier") or "standard"
+    base["slides"] = content.get("slides") or []
+    return base

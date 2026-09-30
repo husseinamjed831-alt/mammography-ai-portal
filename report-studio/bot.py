@@ -58,7 +58,7 @@ store = OrderStore(DATA / "orders.db")
 
 # ------------------------------------------------------------------ texts
 
-BTN_ORDER = "📝 اطلب تقرير"
+BTN_ORDER = "📝 اطلب تقرير أو عرض"
 BTN_SAMPLES = "📂 نماذج من شغلنا"
 BTN_PRICES = "💰 الأسعار"
 BTN_CONTACT = "☎️ تواصل معنا"
@@ -71,34 +71,47 @@ MAIN_KB = ReplyKeyboardMarkup(
 THEME_LABELS = {f"{t.name_ar}": key for key, t in THEMES.items()}
 STAGES = ["المرحلة الأولى", "المرحلة الثانية", "المرحلة الثالثة", "المرحلة الرابعة",
           "المرحلة الخامسة", "المرحلة السادسة", "ماجستير", "دكتوراه"]
+KIND_REPORT = "📄 تقرير (Word + PDF)"
+KIND_DECK = "📊 عرض تقديمي (PowerPoint)"
+TIER_LABELS = {"عادي": "standard", "متحرك ✨": "animated", "ثلاثي الأبعاد 3D 🧊": "three_d"}
 
-# Each step: (key, question, choices or None, optional, columns)
+# Each step: key, question, choices, optional, columns, and which order kinds
+# ("report", "presentation") it applies to.
+BOTH = ("report", "presentation")
 STEPS = [
-    ("title", "✍️ شنو <b>عنوان التقرير</b>؟", None, False, 1),
-    ("lang", "🌐 لغة التقرير؟", ["عربي", "English"], False, 2),
+    ("kind", "📦 شنو تحتاج؟", [KIND_REPORT, KIND_DECK], False, 1, BOTH),
+    ("title", "✍️ شنو <b>العنوان</b>؟", None, False, 1, BOTH),
+    ("lang", "🌐 اللغة؟", ["عربي", "English"], False, 2, BOTH),
     ("pages", "📄 كم <b>صفحة</b> تريد؟ (اختار أو اكتب رقم من 5 إلى 40)",
-     ["5", "8", "10", "15", "20", "30", "40"], False, 4),
+     ["5", "8", "10", "15", "20", "30", "40"], False, 4, ("report",)),
+    ("slides", "🖥 كم <b>شريحة</b> تريد؟ (اختار أو اكتب رقم من 6 إلى 30)",
+     ["8", "10", "12", "15", "20", "25"], False, 3, ("presentation",)),
+    ("tier", "✨ نوع العرض؟\n• <b>عادي</b>: تصميم احترافي\n• <b>متحرك</b>: انتقالات وحركات للعناصر\n"
+     "• <b>3D</b>: أشكال ثلاثية الأبعاد تتحرك بين الشرائح (Morph)",
+     list(TIER_LABELS), False, 1, ("presentation",)),
     ("student", "👤 <b>اسم الطالب</b> مثل ما تريده على الغلاف:\n(إذا أكثر من طالب اكتب الأسماء بينها فارزة)",
-     None, False, 1),
-    ("university", "🏛 اسم <b>الجامعة</b>؟", None, False, 1),
-    ("college", "🏫 اسم <b>الكلية</b>؟", None, False, 1),
-    ("department", "📚 اسم <b>القسم</b>؟", None, True, 1),
-    ("subject", "📘 اسم <b>المادة</b>؟", None, False, 1),
-    ("stage", "🎓 <b>المرحلة</b>؟", STAGES, False, 2),
+     None, False, 1, BOTH),
+    ("university", "🏛 اسم <b>الجامعة</b>؟", None, False, 1, BOTH),
+    ("college", "🏫 اسم <b>الكلية</b>؟", None, False, 1, BOTH),
+    ("department", "📚 اسم <b>القسم</b>؟", None, True, 1, BOTH),
+    ("subject", "📘 اسم <b>المادة</b>؟", None, False, 1, BOTH),
+    ("stage", "🎓 <b>المرحلة</b>؟", STAGES, False, 2, BOTH),
     ("supervisor", "👨‍🏫 اسم <b>الأستاذ المشرف</b>؟ (مع اللقب العلمي مثل: م.د. أو أ.م.د.)",
-     None, True, 1),
-    ("academic_year", "📅 <b>العام الدراسي</b>؟", ["2025 – 2026"], True, 1),
+     None, True, 1, BOTH),
+    ("academic_year", "📅 <b>العام الدراسي</b>؟", ["2025 – 2026"], True, 1, BOTH),
     ("theme", "🎨 اختار <b>التصميم</b> (تگدر تشوف النماذج من القائمة الرئيسية):",
-     list(THEME_LABELS), False, 2),
-    ("notes", "📝 عندك <b>ملاحظات</b> من الأستاذ أو نقاط لازم يركز عليها التقرير؟\nاكتبها، أو اضغط تخطي.",
-     None, True, 1),
+     list(THEME_LABELS), False, 2, BOTH),
+    ("notes", "📝 عندك <b>ملاحظات</b> من الأستاذ أو نقاط لازم يركز عليها؟\nاكتبها، أو اضغط تخطي.",
+     None, True, 1, BOTH),
 ]
 LABELS = {
-    "title": "العنوان", "lang": "اللغة", "pages": "الصفحات", "student": "الطالب",
-    "university": "الجامعة", "college": "الكلية", "department": "القسم", "subject": "المادة",
-    "stage": "المرحلة", "supervisor": "المشرف", "academic_year": "العام الدراسي",
-    "theme": "التصميم", "notes": "ملاحظات",
+    "kind": "النوع", "title": "العنوان", "lang": "اللغة", "pages": "الصفحات", "slides": "الشرائح",
+    "tier": "نوع العرض", "student": "الطالب", "university": "الجامعة", "college": "الكلية",
+    "department": "القسم", "subject": "المادة", "stage": "المرحلة", "supervisor": "المشرف",
+    "academic_year": "العام الدراسي", "theme": "التصميم", "notes": "ملاحظات",
 }
+RANGES = {"pages": (5, 40), "slides": (6, 30)}
+FIXED_CHOICES = ("kind", "lang", "tier", "theme")
 
 ASK, CONFIRM, RECEIPT = range(3)
 
@@ -116,22 +129,38 @@ def step_keyboard(choices, optional, columns):
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
 
 
+def kind_of(answers: dict) -> str:
+    return "presentation" if answers.get("kind") == KIND_DECK else "report"
+
+
+def active_steps(answers: dict) -> list[int]:
+    """Indexes of the steps that apply to this order (depends on its kind)."""
+    kind = kind_of(answers)
+    return [i for i, st in enumerate(STEPS) if kind in st[5]]
+
+
 def to_order(answers: dict) -> dict:
     """Bot answers -> the order dict the pipeline expects."""
     stage = answers.get("stage", "")
     order = {k: v for k, v in answers.items() if v}
+    order["kind"] = kind_of(answers)
     order["lang"] = "en" if answers.get("lang") == "English" else "ar"
     order["theme"] = THEME_LABELS.get(answers.get("theme", ""), "classic")
-    order["pages"] = int(answers.get("pages", 10))
     order["level"] = "postgraduate" if stage in ("ماجستير", "دكتوراه") else "undergraduate"
-    order["kind"] = "report"
+    if order["kind"] == "presentation":
+        order["slides"] = int(answers.get("slides", 12))
+        order["tier"] = TIER_LABELS.get(answers.get("tier", ""), "standard")
+        order.pop("pages", None)
+    else:
+        order["pages"] = int(answers.get("pages", 10))
     return order
 
 
 def summary(answers: dict, price: int, order_id: int | None = None) -> str:
     head = f"🧾 <b>طلب رقم #{order_id}</b>" if order_id else "🧾 <b>ملخص طلبك</b>"
     lines = [head, ""]
-    for key, *_ in STEPS:
+    for i in active_steps(answers):
+        key = STEPS[i][0]
         v = answers.get(key)
         if v:
             lines.append(f"• <b>{LABELS[key]}:</b> {html.escape(str(v))}")
@@ -150,10 +179,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = html.escape(update.effective_user.first_name or "")
     await update.message.reply_text(
         f"هلا {name} 👋\n\n"
-        "نسويلك <b>تقرير جامعي كامل</b> بتصميم احترافي:\n"
-        "• غلاف بصيغة الجامعات العراقية\n"
-        "• فهرس، ترقيم صفحات، جداول، ومراجع\n"
-        "• يوصلك Word + PDF + Excel\n\n"
+        "نسويلك بتصميم احترافي:\n"
+        "📄 <b>تقرير جامعي كامل</b>: غلاف بصيغة الجامعات العراقية، فهرس، جداول، ومراجع "
+        "(Word + PDF + Excel)\n"
+        "📊 <b>عرض تقديمي PowerPoint</b>: عادي أو متحرك أو 3D، ويه ملاحظات الإلقاء\n\n"
         "اختار من القائمة 👇",
         parse_mode=ParseMode.HTML, reply_markup=MAIN_KB)
 
@@ -164,7 +193,7 @@ async def prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for max_pages, iqd in PRICES["report"]:
         lines.append(f"• من {lower} إلى {max_pages} صفحة: {fmt_iqd(iqd)}")
         lower = max_pages + 1
-    lines += ["", "<b>العروض التقديمية</b> (قريباً)",
+    lines += ["", "<b>العروض التقديمية</b>",
               f"• عادي: {fmt_iqd(PRICES['presentation']['standard'])}",
               f"• متحرك: {fmt_iqd(PRICES['presentation']['animated'])}",
               f"• ثلاثي الأبعاد 3D: {fmt_iqd(PRICES['presentation']['three_d'])}"]
@@ -178,11 +207,11 @@ async def samples(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     media = [InputMediaPhoto(p.read_bytes()) for p in shots[:10]]
     media[0] = InputMediaPhoto(shots[0].read_bytes(),
-                               caption="📂 نماذج من تقاريرنا (أول 4 صفحات من كل تقرير)")
+                               caption="📂 نماذج من شغلنا")
     await update.message.reply_media_group(media)
-    for pdf in sorted(SAMPLES.glob("*/*.pdf")):
-        with pdf.open("rb") as fh:
-            await update.message.reply_document(fh, filename=pdf.name)
+    for f in sorted(SAMPLES.glob("*/*.pdf")) + sorted(SAMPLES.glob("*/*.pptx")):
+        with f.open("rb") as fh:
+            await update.message.reply_document(fh, filename=f.name)
     await update.message.reply_text("عجبك الشغل؟ اضغط «اطلب تقرير» 👇", reply_markup=MAIN_KB)
 
 
@@ -194,9 +223,10 @@ async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ask_current(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    i = context.user_data["step"]
-    key, question, choices, optional, cols = STEPS[i]
-    progress = f"<i>({i + 1}/{len(STEPS)})</i>\n"
+    steps = active_steps(context.user_data["answers"])
+    pos = context.user_data["step"]
+    _key, question, choices, optional, cols, _kinds = STEPS[steps[pos]]
+    progress = f"<i>({pos + 1}/{len(steps)})</i>\n"
     await update.effective_message.reply_text(
         progress + question, parse_mode=ParseMode.HTML,
         reply_markup=step_keyboard(choices, optional, cols))
@@ -212,30 +242,32 @@ async def order_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def on_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
-    i = context.user_data.get("step", 0)
-    key, _q, choices, optional, _c = STEPS[i]
+    answers = context.user_data.setdefault("answers", {})
+    pos = context.user_data.get("step", 0)
+    key, _q, choices, optional, _c, _k = STEPS[active_steps(answers)[pos]]
 
     if text == BTN_SKIP:
         if not optional:
             await update.message.reply_text("هذا السؤال ضروري 🙏")
             return ASK
         text = ""
-    elif key == "pages":
+    elif key in RANGES:
+        lo, hi = RANGES[key]
         digits = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
-        if not digits.isdigit() or not 5 <= int(digits) <= 40:
-            await update.message.reply_text("اكتب رقم من 5 إلى 40 لو سمحت.")
+        if not digits.isdigit() or not lo <= int(digits) <= hi:
+            await update.message.reply_text(f"اكتب رقم من {lo} إلى {hi} لو سمحت.")
             return ASK
         text = digits
-    elif key in ("lang", "theme") and text not in choices:
+    elif key in FIXED_CHOICES and text not in choices:
         await update.message.reply_text("اختار من الأزرار لو سمحت 👇")
         return ASK
     elif len(text) > 400:
         await update.message.reply_text("النص طويل شوية، اختصره لو سمحت.")
         return ASK
 
-    context.user_data["answers"][key] = text
-    context.user_data["step"] = i + 1
-    if i + 1 < len(STEPS):
+    answers[key] = text
+    context.user_data["step"] = pos + 1
+    if pos + 1 < len(active_steps(answers)):
         return await ask_current(update, context)
 
     answers = context.user_data["answers"]
@@ -359,7 +391,7 @@ async def on_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     store.set_status(oid, "approved")
     await q.message.reply_text(f"✅ تأكد الدفع للطلب #{oid}، بدأ التحضير…")
     await context.bot.send_message(
-        order["chat_id"], f"✅ تأكد الدفع! بدينا نكتب تقريرك #{oid} ✍️\nيوصلك خلال دقائق.")
+        order["chat_id"], f"✅ تأكد الدفع! بدينا نشتغل على طلبك #{oid} ✍️\nيوصلك خلال دقائق.")
     context.application.create_task(fulfil(context.application, oid))
 
 
@@ -377,9 +409,14 @@ async def fulfil(app: Application, oid: int):
         return
 
     await app.bot.send_message(
-        chat, f"🎉 تقريرك جاهز! ({result.get('pages', '?')} صفحة)\n"
-              "راجعه قبل التسليم، وإذا تحتاج تعديل تگدر تعدل على ملف الـ Word مباشرة.")
-    for kind in ("docx", "pdf", "xlsx"):
+        chat,
+        f"🎉 عرضك جاهز! ({result.get('slides', '?')} شريحة)\n"
+        "ملاحظات الإلقاء مكتوبة تحت كل شريحة. الحركات والـ 3D تشتغل على PowerPoint 2019 أو 365، "
+        "وملف الـ PDF للمعاينة بس."
+        if result.get("pptx") else
+        f"🎉 تقريرك جاهز! ({result.get('pages', '?')} صفحة)\n"
+        "راجعه قبل التسليم، وإذا تحتاج تعديل تگدر تعدل على ملف الـ Word مباشرة.")
+    for kind in ("docx", "pptx", "pdf", "xlsx"):
         path = result.get(kind)
         if path:
             with open(path, "rb") as fh:
