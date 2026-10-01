@@ -424,11 +424,11 @@ async def fulfil(app: Application, oid: int):
 
     await app.bot.send_message(
         chat,
-        f"🎉 عرضك جاهز! ({result.get('slides', '?')} شريحة)\n"
+        f"🎉 عرضك جاهز! ({result.get('slides')} شريحة)\n"
         "ملاحظات الإلقاء مكتوبة تحت كل شريحة. الحركات والـ 3D تشتغل على PowerPoint 2019 أو 365، "
-        "وملف الـ PDF للمعاينة بس."
+        "وإذا وصلك PDF فهو للمعاينة بس."
         if result.get("pptx") else
-        f"🎉 تقريرك جاهز! ({result.get('pages', '?')} صفحة)\n"
+        "🎉 تقريرك جاهز!" + (f" ({result['pages']} صفحة)" if result.get("pages") else "") + "\n"
         "راجعه قبل التسليم، وإذا تحتاج تعديل تگدر تعدل على ملف الـ Word مباشرة.")
     for kind in ("docx", "pptx", "pdf", "xlsx"):
         path = result.get(kind)

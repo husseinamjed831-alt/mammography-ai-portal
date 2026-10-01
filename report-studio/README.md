@@ -37,7 +37,7 @@
 
 ```bash
 cd report-studio
-pip install -r requirements.txt        # ويحتاج LibreOffice Writer للـ PDF
+pip install -r requirements.txt        # LibreOffice اختياري: بدونه ما يطلع PDF
 export ANTHROPIC_API_KEY=...           # مفتاح Claude
 export STUDIO_API_KEY=سر-تختاره        # يحمي الخادم
 export PUBLIC_BASE_URL=https://your-server.example.com

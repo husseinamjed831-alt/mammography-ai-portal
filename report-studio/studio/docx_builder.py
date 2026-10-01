@@ -602,7 +602,7 @@ class ReportBuilder:
             left, right = t.cell(row, 0), t.cell(row, 1)
             self.cell_style(left, margins={"top": 70, "bottom": 70})
             self.cell_style(right, margins={"top": 70, "bottom": 70})
-            page = "—"
+            page = ""
             if self.toc_pages and idx < len(self.toc_pages) and self.toc_pages[idx]:
                 page = str(self.toc_pages[idx])
             title = entries[idx][1]  # replaced with numbered text in fill_toc()

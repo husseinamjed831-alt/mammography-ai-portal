@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .docx_builder import build_docx
 from .xlsx_export import build_xlsx
-from .pdf import docx_to_pdf, heading_pages, page_count, previews
+from .pdf import docx_to_pdf, has_soffice, heading_pages, page_count, previews
 
 
 def safe_name(text: str, fallback: str = "report") -> str:
@@ -32,7 +32,8 @@ def render(report: dict, out_dir: str | Path, *, basename: str | None = None,
     result: dict = {"docx": str(docx_path)}
     if make_xlsx:
         result["xlsx"] = str(build_xlsx(report, out_dir / f"{name}.xlsx"))
-    if not make_pdf:
+    # Without LibreOffice there is no PDF (and no TOC page numbers); Word still works.
+    if not make_pdf or not has_soffice():
         build_docx(report, docx_path)
         return result
 
@@ -61,7 +62,7 @@ def render_deck(deck: dict, out_dir: str | Path, *, basename: str | None = None,
     name = basename or safe_name((deck.get("cover") or {}).get("title", ""), "presentation")
     pptx_path = build_pptx(deck, out_dir / f"{name}.pptx")
     result: dict = {"pptx": str(pptx_path), "slides": len(deck.get("slides") or []) + 3}
-    if make_pdf:
+    if make_pdf and has_soffice():
         pdf_path = docx_to_pdf(pptx_path, out_dir)
         result.update(pdf=str(pdf_path), slides=page_count(pdf_path))
     return result

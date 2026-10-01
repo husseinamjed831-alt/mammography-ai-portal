@@ -27,6 +27,14 @@ def soffice_bin() -> str:
     raise RuntimeError("LibreOffice (soffice) is not installed")
 
 
+def has_soffice() -> bool:
+    try:
+        soffice_bin()
+        return True
+    except RuntimeError:
+        return False
+
+
 def docx_to_pdf(docx: Path, out_dir: Path, timeout: int = 180) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     # A private profile lets several conversions run side by side.
